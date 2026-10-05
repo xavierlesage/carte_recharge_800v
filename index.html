@@ -1,0 +1,308 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bornes 800 V</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2330; --muted: #5d6675; --border: #d9dee6;
+    --panel: rgba(255,255,255,.96); --confirme: #11865a; --probable: #d97706;
+    --accent: #2457c5; --tile-filter: none;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161d; --fg: #e8ebf0; --muted: #9aa3b2; --border: #2e3542;
+      --panel: rgba(22,27,35,.96); --confirme: #2fbf84; --probable: #f59e0b;
+      --accent: #7aa2ff; --tile-filter: brightness(.75) contrast(1.1) saturate(.8);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg);
+    font: 14px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  #carte { position: absolute; inset: 0; }
+  .leaflet-tile-pane { filter: var(--tile-filter); }
+
+  #panneau { position: absolute; z-index: 1000; top: 12px; left: 12px; width: 300px;
+    max-height: calc(100% - 24px); overflow: auto; background: var(--panel); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px; box-shadow: 0 4px 18px rgba(0,0,0,.18); }
+  #panneau h1 { font-size: 17px; margin: 0 0 2px; }
+  #panneau .sous-titre { color: var(--muted); font-size: 12.5px; margin: 0 0 12px; }
+  #panneau fieldset { border: 0; padding: 0; margin: 0 0 12px; }
+  #panneau legend { font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: .04em;
+    color: var(--muted); margin-bottom: 6px; }
+  label.niveau { display: flex; align-items: center; gap: 8px; margin: 4px 0; cursor: pointer; }
+  .pastille { width: 12px; height: 12px; border-radius: 50%; display: inline-block; flex: none;
+    border: 2px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
+  .pastille.confirme { background: var(--confirme); }
+  .pastille.probable { background: var(--probable); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  select { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font: inherit; }
+  #compteur { font-weight: 600; margin: 4px 0 10px; }
+  #recherche { position: relative; margin: 0 0 10px; }
+  #adresse { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
+  #adresse:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #suggestions { position: absolute; z-index: 10; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px 0;
+    list-style: none; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
+    box-shadow: 0 6px 18px rgba(0,0,0,.2); max-height: 260px; overflow: auto; }
+  #suggestions li { padding: 7px 10px; cursor: pointer; }
+  #suggestions li small { display: block; color: var(--muted); font-size: 12px; }
+  #suggestions li[aria-selected="true"], #suggestions li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--fg); padding: 7px 10px; }
+  #localiser { width: 100%; background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+  .avertissement { font-size: 12px; color: var(--muted); margin: 12px 0 0; border-top: 1px solid var(--border); padding-top: 10px; }
+  #replier { display: none; }
+
+  .borne-icone { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+  .borne-icone.confirme { background: var(--confirme); }
+  .borne-icone.probable { background: var(--probable); }
+
+  .marker-cluster { border-radius: 50%; background: color-mix(in srgb, var(--accent) 35%, transparent);
+    display: flex; align-items: center; justify-content: center; }
+  .marker-cluster div { width: calc(100% - 8px); height: calc(100% - 8px); border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    background: var(--accent); color: #fff; font-weight: 700; font-size: 12.5px;
+    border: 2px solid #fff; box-shadow: 0 1px 5px rgba(0,0,0,.4); }
+  .marker-cluster.mixte-probable div { background: var(--probable); }
+  .marker-cluster.mixte-probable { background: color-mix(in srgb, var(--probable) 35%, transparent); }
+  .marker-cluster.tout-confirme div { background: var(--confirme); }
+  .marker-cluster.tout-confirme { background: color-mix(in srgb, var(--confirme) 35%, transparent); }
+
+  .leaflet-popup-content-wrapper, .leaflet-popup-tip { background: var(--panel); color: var(--fg); }
+  .leaflet-popup-content { margin: 12px 14px; min-width: 220px; }
+  .popup h2 { font-size: 15px; margin: 0 0 4px; }
+  .popup .ligne { margin: 2px 0; color: var(--muted); }
+  .popup .kw { font-size: 20px; font-weight: 700; color: var(--fg); }
+  .popup .badge { display: inline-block; padding: 2px 8px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 600; margin: 6px 0 4px; }
+  .popup .badge.confirme { background: var(--confirme); }
+  .popup .badge.probable { background: var(--probable); }
+  .popup .raison { font-size: 12px; color: var(--muted); }
+  .popup .liens { display: flex; gap: 8px; margin-top: 8px; }
+  .popup .liens a { flex: 1; text-align: center; padding: 6px; border-radius: 8px; border: 1px solid var(--border);
+    color: var(--accent); text-decoration: none; font-weight: 600; }
+
+  @media (max-width: 640px) {
+    #panneau { top: auto; bottom: 0; left: 0; right: 0; width: auto; max-height: 60%;
+      border-radius: 14px 14px 0 0; padding: 12px 16px; }
+    #panneau.replie .corps { display: none; }
+    #replier { display: block; position: absolute; top: 10px; right: 12px; padding: 4px 10px; }
+    .leaflet-bottom.leaflet-right { bottom: 64px; }
+  }
+</style>
+</head>
+<body>
+<div id="carte"></div>
+
+<aside id="panneau">
+  <button id="replier" aria-expanded="true">Masquer</button>
+  <h1>Bornes rapides 800 V</h1>
+  <p class="sous-titre">France · données IRVE data.gouv.fr <span id="date"></span></p>
+  <div id="recherche">
+    <input id="adresse" type="search" placeholder="Rechercher une adresse ou une ville…" autocomplete="off"
+      role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
+    <ul id="suggestions" role="listbox" hidden></ul>
+  </div>
+  <div id="compteur">Chargement…</div>
+  <div class="corps">
+    <fieldset>
+      <legend>Compatibilité 800 V</legend>
+      <label class="niveau"><input type="checkbox" value="confirme" checked> <span class="pastille confirme"></span> Confirmée (réseau 800 V+)</label>
+      <label class="niveau"><input type="checkbox" value="probable" checked> <span class="pastille probable"></span> Probable (à vérifier)</label>
+    </fieldset>
+    <fieldset>
+      <legend>Puissance minimale : <span id="pmin-val">150</span> kW</legend>
+      <input id="pmin" type="range" min="150" max="400" step="25" value="150">
+    </fieldset>
+    <fieldset>
+      <legend>Réseau</legend>
+      <select id="reseau"><option value="">Tous les réseaux</option></select>
+    </fieldset>
+    <button id="localiser">📍 Me localiser</button>
+    <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : les données publiques n'indiquent pas la tension des bornes. Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
+  </div>
+</aside>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<script>
+const carte = L.map('carte', { zoomControl: false }).setView([46.6, 2.4], 6);
+L.control.zoom({ position: 'topright' }).addTo(carte);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 19, attribution: '&copy; contributeurs OpenStreetMap · IRVE data.gouv.fr'
+}).addTo(carte);
+
+const groupe = L.markerClusterGroup({
+  maxClusterRadius: 50, showCoverageOnHover: false,
+  iconCreateFunction(cluster) {
+    const enfants = cluster.getAllChildMarkers();
+    const confirmes = enfants.filter(m => m.borne.niveau === 'confirme').length;
+    const n = enfants.length;
+    const classe = confirmes === n ? 'tout-confirme' : confirmes === 0 ? 'mixte-probable' : '';
+    const taille = n < 10 ? 34 : n < 100 ? 40 : 48;
+    return L.divIcon({ html: `<div><span>${n}</span></div>`, className: `marker-cluster ${classe}`,
+      iconSize: [taille, taille] });
+  }
+});
+carte.addLayer(groupe);
+
+const echapper = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const reseauDe = p => p.reseau || p.operateur || 'Inconnu';
+
+function popup(p, lat, lon) {
+  const libelle = p.niveau === 'confirme' ? '800 V confirmé' : '800 V probable';
+  const lieu = p.adresse || p.commune;
+  return `<div class="popup">
+    <h2>${echapper(p.nom || reseauDe(p))}</h2>
+    <div class="ligne">${echapper(lieu)}</div>
+    <div><span class="kw">${p.kw} kW</span> · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge</div>
+    <div class="ligne">Réseau : ${echapper(reseauDe(p))}${p.operateur && p.operateur !== p.reseau ? ` (${echapper(p.operateur)})` : ''}</div>
+    ${p.horaires ? `<div class="ligne">Horaires : ${echapper(p.horaires)}</div>` : ''}
+    ${p.mise_en_service ? `<div class="ligne">Mise en service : ${echapper(p.mise_en_service)}</div>` : ''}
+    <span class="badge ${p.niveau}">${libelle}</span>
+    <div class="raison">${echapper(p.raison)}</div>
+    <div class="liens">
+      <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener">Google Maps</a>
+      <a href="https://waze.com/ul?ll=${lat},${lon}&navigate=yes" target="_blank" rel="noopener">Waze</a>
+    </div>
+  </div>`;
+}
+
+let marqueurs = [];
+
+function filtrer() {
+  const niveaux = new Set([...document.querySelectorAll('.niveau input:checked')].map(i => i.value));
+  const pmin = +document.getElementById('pmin').value;
+  const reseau = document.getElementById('reseau').value;
+  document.getElementById('pmin-val').textContent = pmin;
+  const visibles = marqueurs.filter(m => niveaux.has(m.borne.niveau) && m.borne.kw >= pmin
+    && (!reseau || reseauDe(m.borne) === reseau));
+  groupe.clearLayers();
+  groupe.addLayers(visibles);
+  const n = visibles.length;
+  document.getElementById('compteur').textContent = `${n.toLocaleString('fr-FR')} station${n > 1 ? 's' : ''} affichée${n > 1 ? 's' : ''}`;
+}
+
+fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
+  if (donnees.date_donnees) {
+    document.getElementById('date').textContent = '· ' + new Date(donnees.date_donnees).toLocaleDateString('fr-FR');
+  }
+  marqueurs = donnees.features.map(f => {
+    const [lon, lat] = f.geometry.coordinates;
+    const p = f.properties;
+    const taille = p.kw >= 300 ? 20 : p.kw >= 200 ? 16 : 13;
+    const m = L.marker([lat, lon], {
+      icon: L.divIcon({ className: `borne-icone ${p.niveau}`, iconSize: [taille, taille] }),
+      title: `${reseauDe(p)} · ${p.kw} kW`
+    });
+    m.borne = p;
+    m.bindPopup(() => popup(p, lat, lon));
+    return m;
+  });
+
+  const comptes = {};
+  marqueurs.forEach(m => { const r = reseauDe(m.borne); comptes[r] = (comptes[r] || 0) + 1; });
+  const select = document.getElementById('reseau');
+  Object.keys(comptes).sort((a, b) => a.localeCompare(b, 'fr')).forEach(r => {
+    select.add(new Option(`${r} (${comptes[r]})`, r));
+  });
+  filtrer();
+}).catch(() => {
+  document.getElementById('compteur').textContent = 'Impossible de charger bornes_800v.geojson';
+});
+
+document.querySelectorAll('.niveau input, #reseau').forEach(el => el.addEventListener('change', filtrer));
+document.getElementById('pmin').addEventListener('input', filtrer);
+
+// Recherche d'adresse via la Base Adresse Nationale (IGN / data.gouv.fr)
+const champ = document.getElementById('adresse');
+const liste = document.getElementById('suggestions');
+let resultats = [], selection = -1, minuterie, requete, repere;
+
+function afficherSuggestions() {
+  liste.innerHTML = resultats.map((f, i) => {
+    const p = f.properties;
+    const detail = p.type === 'municipality' ? p.context : [p.postcode, p.city].filter(Boolean).join(' ');
+    return `<li role="option" data-i="${i}" aria-selected="${i === selection}">${echapper(p.name)}<small>${echapper(detail)}</small></li>`;
+  }).join('');
+  liste.hidden = resultats.length === 0;
+  champ.setAttribute('aria-expanded', String(!liste.hidden));
+}
+
+function fermerSuggestions() { resultats = []; selection = -1; afficherSuggestions(); }
+
+function allerA(f) {
+  const [lon, lat] = f.geometry.coordinates;
+  const p = f.properties;
+  champ.value = p.label;
+  fermerSuggestions();
+  champ.blur();
+  const zoom = { municipality: 11, street: 14, housenumber: 15, locality: 14 }[p.type] || 12;
+  carte.setView([lat, lon], zoom);
+  if (repere) repere.remove();
+  repere = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#d33', fillOpacity: 1 })
+    .bindTooltip(echapper(p.label)).addTo(carte);
+  if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
+    document.getElementById('replier').click();
+  }
+}
+
+champ.addEventListener('input', () => {
+  clearTimeout(minuterie);
+  const q = champ.value.trim();
+  if (q.length < 3) { fermerSuggestions(); return; }
+  minuterie = setTimeout(async () => {
+    requete?.abort();
+    requete = new AbortController();
+    try {
+      const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=6&autocomplete=1`,
+        { signal: requete.signal });
+      resultats = (await r.json()).features || [];
+      selection = -1;
+      afficherSuggestions();
+    } catch (e) { if (e.name !== 'AbortError') fermerSuggestions(); }
+  }, 250);
+});
+
+champ.addEventListener('keydown', e => {
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    if (!resultats.length) return;
+    e.preventDefault();
+    selection = (selection + (e.key === 'ArrowDown' ? 1 : -1) + resultats.length) % resultats.length;
+    afficherSuggestions();
+  } else if (e.key === 'Enter') {
+    e.preventDefault();
+    if (resultats.length) allerA(resultats[Math.max(selection, 0)]);
+  } else if (e.key === 'Escape') {
+    fermerSuggestions();
+  }
+});
+
+// mousedown plutôt que click : se déclenche avant que le champ perde le focus
+liste.addEventListener('mousedown', e => {
+  const li = e.target.closest('li');
+  if (li) { e.preventDefault(); allerA(resultats[+li.dataset.i]); }
+});
+champ.addEventListener('blur', () => setTimeout(fermerSuggestions, 150));
+
+let position;
+document.getElementById('localiser').addEventListener('click', () => carte.locate({ setView: true, maxZoom: 11 }));
+carte.on('locationfound', e => {
+  if (position) position.remove();
+  position = L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#2457c5', fillOpacity: 1 }).addTo(carte);
+});
+carte.on('locationerror', () => alert('Localisation indisponible (autorisation refusée ou page non servie en HTTPS).'));
+
+const panneau = document.getElementById('panneau');
+document.getElementById('replier').addEventListener('click', e => {
+  const replie = panneau.classList.toggle('replie');
+  e.target.textContent = replie ? 'Filtres' : 'Masquer';
+  e.target.setAttribute('aria-expanded', String(!replie));
+});
+</script>
+</body>
+</html>

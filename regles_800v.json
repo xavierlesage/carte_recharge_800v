@@ -1,0 +1,120 @@
+{
+  "_doc": "Classement des stations par motif (regex, insensible à la casse) sur 'opérateur | enseigne | aménageur'. La première règle qui correspond gagne. niveau = confirme | probable | exclu. reseau = nom affiché et utilisé pour regrouper les doublons.",
+  "puissance_min_kw": 150,
+  "probable_si_puissance_kw": 300,
+  "regles": [
+    {
+      "motif": "tesla",
+      "niveau": "exclu",
+      "raison": "Superchargeurs Tesla V3 limités à ~500 V : recharge très lente en 800 V (V4 non identifiable dans les données)",
+      "reseau": "Tesla"
+    },
+    {
+      "motif": "izivia",
+      "niveau": "exclu",
+      "raison": "Matériel IZIVIA en 400 V constaté (erreur de recharge sur une borne de 250 kW)",
+      "reseau": "IZIVIA"
+    },
+    {
+      "motif": "milence",
+      "niveau": "exclu",
+      "raison": "Réseau réservé aux poids lourds",
+      "reseau": "Milence"
+    },
+    {
+      "motif": "ionity",
+      "niveau": "confirme",
+      "raison": "Réseau Ionity : bornes HPC 350 kW jusqu'à 920–1000 V",
+      "reseau": "Ionity"
+    },
+    {
+      "motif": "electra",
+      "niveau": "confirme",
+      "raison": "Réseau Electra : Alpitronic/Kempower jusqu'à 1000 V",
+      "reseau": "Electra"
+    },
+    {
+      "motif": "fastned",
+      "niveau": "confirme",
+      "raison": "Réseau Fastned : Alpitronic HYC jusqu'à 1000 V",
+      "reseau": "Fastned"
+    },
+    {
+      "motif": "atlante",
+      "niveau": "confirme",
+      "raison": "Réseau Atlante : Alpitronic/ABB HPC 800 V+",
+      "reseau": "Atlante"
+    },
+    {
+      "motif": "carrefour|allego|kl[ée]pierre|green ?to ?wheel",
+      "niveau": "confirme",
+      "raison": "Allego / Carrefour Energies : Alpitronic HYC jusqu'à 1000 V",
+      "reseau": "Allego / Carrefour Energies"
+    },
+    {
+      "motif": "lidl",
+      "niveau": "confirme",
+      "raison": "Lidl : ABB Terra 360 (150–920 V)",
+      "reseau": "Lidl"
+    },
+    {
+      "motif": "totalenergies.*charge rapide|totalenergies charging services \\| totalenergies",
+      "niveau": "confirme",
+      "raison": "TotalEnergies Charge Rapide : Alpitronic HYC jusqu'à 1000 V",
+      "reseau": "TotalEnergies"
+    },
+    {
+      "motif": "zunder",
+      "niveau": "confirme",
+      "raison": "Réseau Zunder : HPC 800 V+",
+      "reseau": "Zunder"
+    },
+    {
+      "motif": "power ?dot",
+      "niveau": "probable",
+      "raison": "Power Dot : stations HPC récentes en général 800 V+, à vérifier",
+      "reseau": "Power Dot"
+    },
+    {
+      "motif": "bp ?pulse|bp france",
+      "niveau": "probable",
+      "raison": "BP Pulse : Alpitronic en Europe, à vérifier",
+      "reseau": "BP Pulse"
+    },
+    {
+      "motif": "e-totem",
+      "niveau": "probable",
+      "raison": "e-Totem (fabricant français) : modèles e-Fast récents 800 V+, à vérifier",
+      "reseau": "e-Totem"
+    },
+    {
+      "motif": "evzen",
+      "niveau": "probable",
+      "raison": "EVzen : HPC récentes, à vérifier",
+      "reseau": "EVzen"
+    },
+    {
+      "motif": "vianeo",
+      "niveau": "probable",
+      "raison": "Engie Vianeo : HPC récentes, à vérifier",
+      "reseau": "Engie Vianeo"
+    },
+    {
+      "motif": "sowatt",
+      "niveau": "probable",
+      "raison": "Sowatt : HPC récentes, à vérifier",
+      "reseau": "Sowatt"
+    },
+    {
+      "motif": "driveco",
+      "niveau": "probable",
+      "raison": "Driveco : HPC récentes, à vérifier",
+      "reseau": "Driveco"
+    },
+    {
+      "motif": "totalenergies|il[ée]wat",
+      "niveau": "probable",
+      "raison": "TotalEnergies (autre enseigne) : à vérifier"
+    }
+  ]
+}
