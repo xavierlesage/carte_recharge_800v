@@ -215,6 +215,7 @@ fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
   marqueurs.forEach(m => { const r = reseauDe(m.borne); comptes[r] = (comptes[r] || 0) + 1; });
   reseaux = Object.keys(comptes).sort((a, b) => a.localeCompare(b, 'fr')).map(nom => ({ nom, nb: comptes[nom] }));
   filtrer();
+  ouvrirDepuisUrl();
 }).catch(() => {
   document.getElementById('compteur').textContent = 'Impossible de charger bornes_800v.geojson';
 });
@@ -293,14 +294,39 @@ combobox(champAdresse, document.getElementById('suggestions-adresse'), {
     champAdresse.blur();
     const zoom = { municipality: 11, street: 14, housenumber: 15, locality: 14 }[p.type] || 12;
     carte.setView([lat, lon], zoom);
-    if (repere) repere.remove();
-    repere = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#d33', fillOpacity: 1 })
-      .bindTooltip(echapper(p.label)).addTo(carte);
+    placerRepere(lat, lon, p.label);
     if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
       document.getElementById('replier').click();
     }
   }
 });
+
+function placerRepere(lat, lon, libelle) {
+  if (repere) repere.remove();
+  repere = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#d33', fillOpacity: 1 })
+    .bindTooltip(echapper(libelle || 'Point recherché')).addTo(carte);
+}
+
+// Ouverture depuis un lien (widget iOS) :
+//   ?lat=..&lon=..&z=..&q=libellé     centre la carte sur un point de recherche
+//   &borne=lat,lon                    ouvre en plus la fiche de cette station
+function ouvrirDepuisUrl() {
+  const params = new URLSearchParams(location.search);
+  const lat = parseFloat(params.get('lat')), lon = parseFloat(params.get('lon'));
+  if (!isNaN(lat) && !isNaN(lon)) {
+    carte.setView([lat, lon], parseInt(params.get('z')) || 12);
+    placerRepere(lat, lon, params.get('q'));
+    if (params.get('q')) champAdresse.value = params.get('q');
+  }
+  const [blat, blon] = (params.get('borne') || '').split(',').map(parseFloat);
+  if (isNaN(blat) || isNaN(blon)) return;
+  const cible = marqueurs.reduce((meilleur, m) => {
+    const d = m.getLatLng().distanceTo([blat, blon]);
+    return d < meilleur.d ? { m, d } : meilleur;
+  }, { m: null, d: 200 }).m;   // tolérance 200 m
+  if (cible) groupe.zoomToShowLayer(cible, () => cible.openPopup());
+  else carte.setView([blat, blon], 15);
+}
 
 // Filtre réseau : suggestions dès 2 caractères, sans tenir compte des accents ni de la casse
 const champReseau = document.getElementById('reseau');
