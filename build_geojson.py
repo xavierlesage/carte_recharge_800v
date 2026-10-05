@@ -36,6 +36,30 @@ def puissance_kw(valeur):
     return p / 1000 if p > 2000 else p  # certaines valeurs sont saisies en W
 
 
+def reparer(texte):
+    """Corrige les textes mal encodés du fichier source (UTF-8 relu en Latin-1 ou en Mac Roman,
+    parfois deux fois de suite : « RÃ©seau », « D√©partementale », « Ali‚àö¬©nor »)."""
+    texte = texte.strip()
+    for _ in range(3):
+        for codec in ("cp1252", "mac_roman"):
+            try:
+                corrige = texte.encode(codec).decode("utf-8")
+            except UnicodeError:
+                continue
+            if corrige != texte:
+                texte = corrige
+                break
+        else:
+            break
+    return texte.replace("\ufffd", "é")  # caractère perdu dans la source, presque toujours un « é »
+
+
+def nom_reseau(operateur):
+    """Nom d'opérateur lisible : sans le code d'itinérance « | FR*XXX », casse normalisée."""
+    nom = re.sub(r"\s*\|.*$", "", operateur).strip()
+    return nom.title() if nom.isupper() and len(nom) > 4 else nom
+
+
 def vrai(valeur):
     return valeur.strip().lower() in ("true", "1", "oui")
 
@@ -65,13 +89,13 @@ def main():
             s = stations.get(cle)
             if s is None:
                 s = stations[cle] = {
-                    "nom": ligne["nom_station"].strip(),
-                    "adresse": ligne["adresse_station"].strip(),
-                    "commune": ligne["consolidated_commune"].strip(),
-                    "operateur": ligne["nom_operateur"].strip(),
-                    "enseigne": ligne["nom_enseigne"].strip(),
-                    "amenageur": ligne["nom_amenageur"].strip(),
-                    "horaires": ligne["horaires"].strip(),
+                    "nom": reparer(ligne["nom_station"]),
+                    "adresse": reparer(ligne["adresse_station"]),
+                    "commune": reparer(ligne["consolidated_commune"]),
+                    "operateur": reparer(ligne["nom_operateur"]),
+                    "enseigne": reparer(ligne["nom_enseigne"]),
+                    "amenageur": reparer(ligne["nom_amenageur"]),
+                    "horaires": reparer(ligne["horaires"]),
                     "mise_en_service": ligne["date_mise_en_service"].strip(),
                     "pdc": set(), "nbre_pdc": 0, "maj": "",
                     "pmax": 0,
@@ -86,19 +110,21 @@ def main():
                 pass
 
     # Classement de chaque station selon les règles opérateur / puissance.
+    graphies = {}  # une seule graphie par réseau (OBORNES / Obornes…)
     for s in stations.values():
         texte = " | ".join((s["operateur"], s["enseigne"], s["amenageur"]))
         regle = next((r for motif, r in regles if motif.search(texte)), None)
         if regle:
             s["niveau"], s["raison"] = regle["niveau"], regle["raison"]
-            s["reseau"] = regle.get("reseau") or s["enseigne"] or s["operateur"]
+            s["reseau"] = regle.get("reseau") or nom_reseau(s["operateur"] or s["enseigne"])
         elif s["pmax"] >= p_probable:
             s["niveau"] = "probable"
             s["raison"] = f"Borne ≥ {p_probable} kW : matériel quasi toujours 800 V+, à vérifier"
-            s["reseau"] = s["enseigne"] or s["operateur"]
+            s["reseau"] = nom_reseau(s["operateur"] or s["enseigne"])
         else:
             s["niveau"], s["raison"] = "inconnu", ""
-            s["reseau"] = s["enseigne"] or s["operateur"]
+            s["reseau"] = nom_reseau(s["operateur"] or s["enseigne"])
+        s["reseau"] = graphies.setdefault(s["reseau"].lower(), s["reseau"]) or "Inconnu"
         s["nb_pdc"] = max(len(s["pdc"]), s["nbre_pdc"])
 
     # Une même station est parfois déclarée plusieurs fois, par des sources différentes

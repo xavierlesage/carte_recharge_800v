@@ -114,7 +114,8 @@
     {
       "motif": "totalenergies|il[ée]wat",
       "niveau": "probable",
-      "raison": "TotalEnergies (autre enseigne) : à vérifier"
+      "raison": "TotalEnergies (autre enseigne) : à vérifier",
+      "reseau": "TotalEnergies"
     }
   ]
 }

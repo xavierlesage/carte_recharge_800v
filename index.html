@@ -39,19 +39,20 @@
   .pastille.confirme { background: var(--confirme); }
   .pastille.probable { background: var(--probable); }
   input[type=range] { width: 100%; accent-color: var(--accent); }
-  select { width: 100%; padding: 6px 8px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--fg); font: inherit; }
   #compteur { font-weight: 600; margin: 4px 0 10px; }
-  #recherche { position: relative; margin: 0 0 10px; }
-  #adresse { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
+  .combo { position: relative; }
+  #recherche { margin: 0 0 10px; }
+  .combo input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
-  #adresse:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  #suggestions { position: absolute; z-index: 10; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px 0;
+  .combo input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  .suggestions { position: absolute; z-index: 10; left: 0; right: 0; top: calc(100% + 4px); margin: 0; padding: 4px 0;
     list-style: none; background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
     box-shadow: 0 6px 18px rgba(0,0,0,.2); max-height: 260px; overflow: auto; }
-  #suggestions li { padding: 7px 10px; cursor: pointer; }
-  #suggestions li small { display: block; color: var(--muted); font-size: 12px; }
-  #suggestions li[aria-selected="true"], #suggestions li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
+  .suggestions li { padding: 7px 10px; cursor: pointer; }
+  .suggestions li small { display: block; color: var(--muted); font-size: 12px; }
+  .suggestions li .nb { float: right; color: var(--muted); font-size: 12px; }
+  .suggestions li.vide { color: var(--muted); cursor: default; }
+  .suggestions li[aria-selected="true"], .suggestions li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg); color: var(--fg); padding: 7px 10px; }
   #localiser { width: 100%; background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
@@ -102,10 +103,10 @@
   <button id="replier" aria-expanded="true">Masquer</button>
   <h1>Bornes rapides 800 V</h1>
   <p class="sous-titre">France · données IRVE data.gouv.fr <span id="date"></span></p>
-  <div id="recherche">
+  <div id="recherche" class="combo">
     <input id="adresse" type="search" placeholder="Rechercher une adresse ou une ville…" autocomplete="off"
-      role="combobox" aria-expanded="false" aria-controls="suggestions" aria-autocomplete="list">
-    <ul id="suggestions" role="listbox" hidden></ul>
+      role="combobox" aria-expanded="false" aria-controls="suggestions-adresse" aria-autocomplete="list">
+    <ul id="suggestions-adresse" class="suggestions" role="listbox" hidden></ul>
   </div>
   <div id="compteur">Chargement…</div>
   <div class="corps">
@@ -120,7 +121,11 @@
     </fieldset>
     <fieldset>
       <legend>Réseau</legend>
-      <select id="reseau"><option value="">Tous les réseaux</option></select>
+      <div class="combo">
+        <input id="reseau" type="search" placeholder="Tous les réseaux — tapez 2 lettres…" autocomplete="off"
+          role="combobox" aria-expanded="false" aria-controls="suggestions-reseau" aria-autocomplete="list">
+        <ul id="suggestions-reseau" class="suggestions" role="listbox" hidden></ul>
+      </div>
     </fieldset>
     <button id="localiser">📍 Me localiser</button>
     <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : les données publiques n'indiquent pas la tension des bornes. Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
@@ -173,11 +178,13 @@ function popup(p, lat, lon) {
 }
 
 let marqueurs = [];
+let reseauChoisi = '';   // '' = tous les réseaux
+let reseaux = [];        // [{ nom, nb }] trié par nom
 
 function filtrer() {
   const niveaux = new Set([...document.querySelectorAll('.niveau input:checked')].map(i => i.value));
   const pmin = +document.getElementById('pmin').value;
-  const reseau = document.getElementById('reseau').value;
+  const reseau = reseauChoisi;
   document.getElementById('pmin-val').textContent = pmin;
   const visibles = marqueurs.filter(m => niveaux.has(m.borne.niveau) && m.borne.kw >= pmin
     && (!reseau || reseauDe(m.borne) === reseau));
@@ -206,88 +213,121 @@ fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
 
   const comptes = {};
   marqueurs.forEach(m => { const r = reseauDe(m.borne); comptes[r] = (comptes[r] || 0) + 1; });
-  const select = document.getElementById('reseau');
-  Object.keys(comptes).sort((a, b) => a.localeCompare(b, 'fr')).forEach(r => {
-    select.add(new Option(`${r} (${comptes[r]})`, r));
-  });
+  reseaux = Object.keys(comptes).sort((a, b) => a.localeCompare(b, 'fr')).map(nom => ({ nom, nb: comptes[nom] }));
   filtrer();
 }).catch(() => {
   document.getElementById('compteur').textContent = 'Impossible de charger bornes_800v.geojson';
 });
 
-document.querySelectorAll('.niveau input, #reseau').forEach(el => el.addEventListener('change', filtrer));
+document.querySelectorAll('.niveau input').forEach(el => el.addEventListener('change', filtrer));
 document.getElementById('pmin').addEventListener('input', filtrer);
 
-// Recherche d'adresse via la Base Adresse Nationale (IGN / data.gouv.fr)
-const champ = document.getElementById('adresse');
-const liste = document.getElementById('suggestions');
-let resultats = [], selection = -1, minuterie, requete, repere;
+// Champ de saisie avec liste de suggestions (clavier : ↑ ↓ Entrée Échap)
+function combobox(champ, liste, { chercher, rendu, choisir, minimum, delai = 0 }) {
+  let resultats = [], selection = -1, minuterie, appel = 0;
 
-function afficherSuggestions() {
-  liste.innerHTML = resultats.map((f, i) => {
+  function afficher() {
+    liste.innerHTML = resultats.length
+      ? resultats.map((r, i) => `<li role="option" data-i="${i}" aria-selected="${i === selection}">${rendu(r)}</li>`).join('')
+      : (champ.value.trim().length >= minimum && document.activeElement === champ ? '<li class="vide">Aucun résultat</li>' : '');
+    liste.hidden = !liste.innerHTML;
+    champ.setAttribute('aria-expanded', String(!liste.hidden));
+  }
+  function fermer() { resultats = []; selection = -1; liste.innerHTML = ''; liste.hidden = true; champ.setAttribute('aria-expanded', 'false'); }
+  function valider(r) { fermer(); choisir(r); }
+
+  champ.addEventListener('input', () => {
+    clearTimeout(minuterie);
+    const q = champ.value.trim();
+    if (q.length < minimum) { fermer(); return; }
+    const n = ++appel;
+    minuterie = setTimeout(async () => {
+      try {
+        const r = await chercher(q);
+        if (n !== appel) return;   // une saisie plus récente est en cours
+        resultats = r; selection = -1; afficher();
+      } catch { if (n === appel) fermer(); }
+    }, delai);
+  });
+  champ.addEventListener('keydown', e => {
+    if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+      if (!resultats.length) return;
+      e.preventDefault();
+      selection = (selection + (e.key === 'ArrowDown' ? 1 : -1) + resultats.length) % resultats.length;
+      afficher();
+      liste.children[selection]?.scrollIntoView({ block: 'nearest' });
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (resultats.length) valider(resultats[Math.max(selection, 0)]);
+    } else if (e.key === 'Escape') {
+      fermer();
+    }
+  });
+  // mousedown plutôt que click : se déclenche avant que le champ perde le focus
+  liste.addEventListener('mousedown', e => {
+    const li = e.target.closest('li[data-i]');
+    e.preventDefault();
+    if (li) valider(resultats[+li.dataset.i]);
+  });
+  champ.addEventListener('blur', () => setTimeout(fermer, 150));
+}
+
+// Recherche d'adresse via la Base Adresse Nationale (IGN / data.gouv.fr), 3 caractères minimum imposés par l'API
+const champAdresse = document.getElementById('adresse');
+let repere;
+combobox(champAdresse, document.getElementById('suggestions-adresse'), {
+  minimum: 3, delai: 250,
+  async chercher(q) {
+    const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=6&autocomplete=1`);
+    return (await r.json()).features || [];
+  },
+  rendu(f) {
     const p = f.properties;
     const detail = p.type === 'municipality' ? p.context : [p.postcode, p.city].filter(Boolean).join(' ');
-    return `<li role="option" data-i="${i}" aria-selected="${i === selection}">${echapper(p.name)}<small>${echapper(detail)}</small></li>`;
-  }).join('');
-  liste.hidden = resultats.length === 0;
-  champ.setAttribute('aria-expanded', String(!liste.hidden));
-}
-
-function fermerSuggestions() { resultats = []; selection = -1; afficherSuggestions(); }
-
-function allerA(f) {
-  const [lon, lat] = f.geometry.coordinates;
-  const p = f.properties;
-  champ.value = p.label;
-  fermerSuggestions();
-  champ.blur();
-  const zoom = { municipality: 11, street: 14, housenumber: 15, locality: 14 }[p.type] || 12;
-  carte.setView([lat, lon], zoom);
-  if (repere) repere.remove();
-  repere = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#d33', fillOpacity: 1 })
-    .bindTooltip(echapper(p.label)).addTo(carte);
-  if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
-    document.getElementById('replier').click();
-  }
-}
-
-champ.addEventListener('input', () => {
-  clearTimeout(minuterie);
-  const q = champ.value.trim();
-  if (q.length < 3) { fermerSuggestions(); return; }
-  minuterie = setTimeout(async () => {
-    requete?.abort();
-    requete = new AbortController();
-    try {
-      const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=6&autocomplete=1`,
-        { signal: requete.signal });
-      resultats = (await r.json()).features || [];
-      selection = -1;
-      afficherSuggestions();
-    } catch (e) { if (e.name !== 'AbortError') fermerSuggestions(); }
-  }, 250);
-});
-
-champ.addEventListener('keydown', e => {
-  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-    if (!resultats.length) return;
-    e.preventDefault();
-    selection = (selection + (e.key === 'ArrowDown' ? 1 : -1) + resultats.length) % resultats.length;
-    afficherSuggestions();
-  } else if (e.key === 'Enter') {
-    e.preventDefault();
-    if (resultats.length) allerA(resultats[Math.max(selection, 0)]);
-  } else if (e.key === 'Escape') {
-    fermerSuggestions();
+    return `${echapper(p.name)}<small>${echapper(detail)}</small>`;
+  },
+  choisir(f) {
+    const [lon, lat] = f.geometry.coordinates;
+    const p = f.properties;
+    champAdresse.value = p.label;
+    champAdresse.blur();
+    const zoom = { municipality: 11, street: 14, housenumber: 15, locality: 14 }[p.type] || 12;
+    carte.setView([lat, lon], zoom);
+    if (repere) repere.remove();
+    repere = L.circleMarker([lat, lon], { radius: 7, color: '#fff', weight: 3, fillColor: '#d33', fillOpacity: 1 })
+      .bindTooltip(echapper(p.label)).addTo(carte);
+    if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
+      document.getElementById('replier').click();
+    }
   }
 });
 
-// mousedown plutôt que click : se déclenche avant que le champ perde le focus
-liste.addEventListener('mousedown', e => {
-  const li = e.target.closest('li');
-  if (li) { e.preventDefault(); allerA(resultats[+li.dataset.i]); }
+// Filtre réseau : suggestions dès 2 caractères, sans tenir compte des accents ni de la casse
+const champReseau = document.getElementById('reseau');
+const normaliser = t => t.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+combobox(champReseau, document.getElementById('suggestions-reseau'), {
+  minimum: 2,
+  chercher(q) {
+    const n = normaliser(q);
+    const trouves = reseaux.filter(r => normaliser(r.nom).includes(n));
+    // ceux qui commencent par la saisie d'abord
+    return trouves.sort((a, b) => normaliser(b.nom).startsWith(n) - normaliser(a.nom).startsWith(n));
+  },
+  rendu: r => `${echapper(r.nom)}<span class="nb">${r.nb}</span>`,
+  choisir(r) {
+    champReseau.value = r.nom;
+    reseauChoisi = r.nom;
+    filtrer();
+  }
 });
-champ.addEventListener('blur', () => setTimeout(fermerSuggestions, 150));
+champReseau.addEventListener('input', () => {
+  // champ vidé (ou croix du champ de recherche) : retour à tous les réseaux
+  if (!champReseau.value.trim() && reseauChoisi) { reseauChoisi = ''; filtrer(); }
+});
+champReseau.addEventListener('blur', () => {
+  // saisie abandonnée sans choisir : on réaffiche le réseau actif
+  setTimeout(() => { if (champReseau.value.trim()) champReseau.value = reseauChoisi; }, 160);
+});
 
 let position;
 document.getElementById('localiser').addEventListener('click', () => carte.locate({ setView: true, maxZoom: 11 }));
