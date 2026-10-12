@@ -102,7 +102,7 @@
 <aside id="panneau">
   <button id="replier" aria-expanded="true">Masquer</button>
   <h1>Bornes rapides 800 V</h1>
-  <p class="sous-titre">France · données IRVE data.gouv.fr <span id="date"></span></p>
+  <p class="sous-titre">France · Espagne <span id="date"></span></p>
   <div id="recherche" class="combo">
     <input id="adresse" type="search" placeholder="Rechercher une adresse ou une ville…" autocomplete="off"
       role="combobox" aria-expanded="false" aria-controls="suggestions-adresse" aria-autocomplete="list">
@@ -128,17 +128,17 @@
       </div>
     </fieldset>
     <button id="localiser">📍 Me localiser</button>
-    <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : les données publiques n'indiquent pas la tension des bornes. Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
+    <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : en France, les données publiques n'indiquent pas la tension des bornes. En Espagne, la tension maximale déclarée par l'opérateur est utilisée quand elle est connue (bornes déclarées sous 800 V exclues). Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
   </div>
 </aside>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
 <script>
-const carte = L.map('carte', { zoomControl: false }).setView([46.6, 2.4], 6);
+const carte = L.map('carte', { zoomControl: false }).setView([44.5, 0.5], 5);
 L.control.zoom({ position: 'topright' }).addTo(carte);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  maxZoom: 19, attribution: '&copy; contributeurs OpenStreetMap · IRVE data.gouv.fr'
+  maxZoom: 19, attribution: '&copy; contributeurs OpenStreetMap · IRVE data.gouv.fr · DGT / MITERD (NAP)'
 }).addTo(carte);
 
 const groupe = L.markerClusterGroup({
@@ -166,6 +166,7 @@ function popup(p, lat, lon) {
     <div class="ligne">${echapper(lieu)}</div>
     <div><span class="kw">${p.kw} kW</span> · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge</div>
     <div class="ligne">Réseau : ${echapper(reseauDe(p))}${p.operateur && p.operateur !== p.reseau ? ` (${echapper(p.operateur)})` : ''}</div>
+    ${p.tension ? `<div class="ligne">Tension max déclarée : ${p.tension} V</div>` : ''}
     ${p.horaires ? `<div class="ligne">Horaires : ${echapper(p.horaires)}</div>` : ''}
     ${p.mise_en_service ? `<div class="ligne">Mise en service : ${echapper(p.mise_en_service)}</div>` : ''}
     <span class="badge ${p.niveau}">${libelle}</span>
@@ -195,9 +196,11 @@ function filtrer() {
 }
 
 fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
-  if (donnees.date_donnees) {
-    document.getElementById('date').textContent = '· ' + new Date(donnees.date_donnees).toLocaleDateString('fr-FR');
-  }
+  const jour = d => new Date(d).toLocaleDateString('fr-FR');
+  document.getElementById('date').textContent = [
+    donnees.date_donnees && `· IRVE ${jour(donnees.date_donnees)}`,
+    donnees.date_donnees_es && `· DGT ${jour(donnees.date_donnees_es)}`
+  ].filter(Boolean).join(' ');
   marqueurs = donnees.features.map(f => {
     const [lon, lat] = f.geometry.coordinates;
     const p = f.properties;
@@ -273,28 +276,60 @@ function combobox(champ, liste, { chercher, rendu, choisir, minimum, delai = 0 }
   champ.addEventListener('blur', () => setTimeout(fermer, 150));
 }
 
-// Recherche d'adresse via la Base Adresse Nationale (IGN / data.gouv.fr), 3 caractères minimum imposés par l'API
+// Recherche d'adresse : Base Adresse Nationale (IGN / data.gouv.fr) pour la France, 3 caractères minimum
+// imposés par l'API, et Photon (OpenStreetMap) pour l'Espagne et les autres pays.
 const champAdresse = document.getElementById('adresse');
 let repere;
+
+async function chercherFrance(q) {
+  const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=6&autocomplete=1`);
+  return ((await r.json()).features || []).map(f => {
+    const p = f.properties;
+    return {
+      coord: f.geometry.coordinates, nom: p.name, libelle: p.label,
+      detail: p.type === 'municipality' ? p.context : [p.postcode, p.city].filter(Boolean).join(' '),
+      zoom: { municipality: 11, street: 14, housenumber: 15, locality: 14 }[p.type] || 12
+    };
+  });
+}
+
+// Renvoie les résultats hors de France, et si le plus pertinent de tous est étranger
+async function chercherEtranger(q) {
+  const r = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=6&lang=fr&lat=43&lon=0&zoom=5`);
+  const features = (await r.json()).features || [];
+  const resultats = features.filter(f => f.properties.countrycode !== 'FR').map(f => {
+    const p = f.properties;
+    const nom = p.name || [p.housenumber, p.street].filter(Boolean).join(' ') || p.city;
+    const ville = p.city !== nom ? p.city : '';
+    return {
+      coord: f.geometry.coordinates, nom,
+      libelle: [nom, ville, p.country].filter(Boolean).join(', '),
+      detail: [[p.postcode, ville].filter(Boolean).join(' '), p.state, p.country].filter(Boolean).join(', '),
+      zoom: { city: 11, district: 13, locality: 13, street: 14, house: 15 }[p.type] || 12
+    };
+  });
+  return { resultats, enTete: features[0]?.properties.countrycode !== 'FR' };
+}
+
 combobox(champAdresse, document.getElementById('suggestions-adresse'), {
   minimum: 3, delai: 250,
   async chercher(q) {
-    const r = await fetch(`https://data.geopf.fr/geocodage/search?q=${encodeURIComponent(q)}&limit=6&autocomplete=1`);
-    return (await r.json()).features || [];
+    const [fr, etr] = await Promise.allSettled([chercherFrance(q), chercherEtranger(q)]);
+    const france = fr.status === 'fulfilled' ? fr.value : [];
+    const { resultats: etranger, enTete } = etr.status === 'fulfilled' ? etr.value : { resultats: [] };
+    if (fr.status === 'rejected' && etr.status === 'rejected') throw fr.reason;
+    // « Saint-Sébastien » : la BAN propose toujours une adresse française approchante,
+    // Photon dit si le lieu le plus pertinent est à l'étranger.
+    return enTete ? [...etranger.slice(0, 4), ...france.slice(0, 3)]
+                  : [...france.slice(0, 5), ...etranger.slice(0, 2)];
   },
-  rendu(f) {
-    const p = f.properties;
-    const detail = p.type === 'municipality' ? p.context : [p.postcode, p.city].filter(Boolean).join(' ');
-    return `${echapper(p.name)}<small>${echapper(detail)}</small>`;
-  },
-  choisir(f) {
-    const [lon, lat] = f.geometry.coordinates;
-    const p = f.properties;
-    champAdresse.value = p.label;
+  rendu: r => `${echapper(r.nom)}<small>${echapper(r.detail)}</small>`,
+  choisir(r) {
+    const [lon, lat] = r.coord;
+    champAdresse.value = r.libelle;
     champAdresse.blur();
-    const zoom = { municipality: 11, street: 14, housenumber: 15, locality: 14 }[p.type] || 12;
-    carte.setView([lat, lon], zoom);
-    placerRepere(lat, lon, p.label);
+    carte.setView([lat, lon], r.zoom);
+    placerRepere(lat, lon, r.libelle);
     if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
       document.getElementById('replier').click();
     }

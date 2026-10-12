@@ -1,25 +1,46 @@
 {
-  "_doc": "Classement des stations par motif (regex, insensible à la casse) sur 'opérateur | enseigne | aménageur'. La première règle qui correspond gagne. niveau = confirme | probable | exclu. reseau = nom affiché et utilisé pour regrouper les doublons.",
+  "_doc": "Classement des stations par motif (regex, insensible à la casse) sur 'opérateur | enseigne | aménageur | code opérateur'. La première règle qui correspond gagne. niveau = confirme | probable | exclu. reseau = nom affiché et utilisé pour regrouper les doublons. Quand la tension est déclarée (données espagnoles), elle prime : ≥ tension_min_v → confirmé, en dessous → exclu ; une règle « exclu » prime sur la tension, sauf si elle porte tension_prioritaire (exclusion motivée par la tension elle-même). noms_reseaux : nom affiché pour les opérateurs sans règle.",
   "puissance_min_kw": 150,
   "probable_si_puissance_kw": 300,
+  "tension_min_v": 800,
   "regles": [
     {
       "motif": "tesla",
       "niveau": "exclu",
       "raison": "Superchargeurs Tesla V3 limités à ~500 V : recharge très lente en 800 V (V4 non identifiable dans les données)",
-      "reseau": "Tesla"
+      "reseau": "Tesla",
+      "tension_prioritaire": true
     },
     {
       "motif": "izivia",
       "niveau": "exclu",
       "raison": "Matériel IZIVIA en 400 V constaté (erreur de recharge sur une borne de 250 kW)",
-      "reseau": "IZIVIA"
+      "reseau": "IZIVIA",
+      "tension_prioritaire": true
     },
     {
       "motif": "milence",
       "niveau": "exclu",
       "raison": "Réseau réservé aux poids lourds",
       "reseau": "Milence"
+    },
+    {
+      "motif": "centros comerciales carrefour",
+      "niveau": "probable",
+      "raison": "Carrefour (Espagne) : tension non déclarée, matériel non documenté, à vérifier",
+      "reseau": "Carrefour (Espagne)"
+    },
+    {
+      "motif": "endesa",
+      "niveau": "probable",
+      "raison": "Endesa X Way : tension non déclarée, à vérifier",
+      "reseau": "Endesa X Way"
+    },
+    {
+      "motif": "repsol",
+      "niveau": "probable",
+      "raison": "Repsol : tension non déclarée, à vérifier",
+      "reseau": "Repsol"
     },
     {
       "motif": "ionity",
@@ -117,5 +138,22 @@
       "raison": "TotalEnergies (autre enseigne) : à vérifier",
       "reseau": "TotalEnergies"
     }
-  ]
+  ],
+  "noms_reseaux": {
+    "charging together|ES\\*FCT": "Iberdrola | bp pulse",
+    "iberdrola": "Iberdrola",
+    "moeve|cepsa": "Moeve",
+    "wenea": "Wenea",
+    "galp": "Galp",
+    "punto recargas": "Punto Recargas",
+    "remo sustainable": "REMO",
+    "instavolt": "InstaVolt",
+    "eranovum": "Eranovum",
+    "acciona": "Acciona",
+    "edp clientes": "EDP",
+    "prio recharge": "Prio",
+    "costco": "Costco",
+    "bonpreu": "Bonpreu",
+    "etecnic": "Etecnic"
+  }
 }

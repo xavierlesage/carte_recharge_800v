@@ -7,7 +7,7 @@
 // Installation : voir README_WIDGET.md
 // Paramètre du widget (appui long > Modifier le widget > Parameter) :
 //   - vide            → bornes autour de ma position
-//   - une adresse     → bornes autour de cette adresse (ex. « Aire de Tours Longue Vue » ou « 44000 Nantes »)
+//   - une adresse     → bornes autour de cette adresse (ex. « Aire de Tours Longue Vue », « 44000 Nantes » ou « Bilbao »)
 // Lancé depuis l'app Scriptable : demande une adresse et affiche la liste complète.
 
 const CONFIG = {
@@ -52,7 +52,19 @@ async function chargerBornes() {
 
 // ---------- Point de recherche ----------
 
+// Base Adresse Nationale pour la France ; Photon (OpenStreetMap) quand le lieu le plus
+// pertinent est à l'étranger (« San Sebastián », « Bilbao »…)
 async function geocoder(adresse) {
+  try {
+    const url = "https://photon.komoot.io/api/?limit=1&lang=fr&lat=43&lon=0&zoom=5&q=" + encodeURIComponent(adresse);
+    const f = (await new Request(url).loadJSON()).features?.[0];
+    if (f && f.properties.countrycode !== "FR") {
+      const [lon, lat] = f.geometry.coordinates;
+      const p = f.properties;
+      const court = p.city || p.name;
+      return { lat, lon, libelle: [p.name, p.city !== p.name && p.city, p.country].filter(Boolean).join(", "), court };
+    }
+  } catch (e) {}
   const url = "https://data.geopf.fr/geocodage/search?limit=1&q=" + encodeURIComponent(adresse);
   const f = (await new Request(url).loadJSON()).features?.[0];
   if (!f) throw new Error(`Adresse introuvable : ${adresse}`);

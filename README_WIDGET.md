@@ -1,6 +1,6 @@
 # Widget iOS « Bornes 800 V les plus proches »
 
-Le widget affiche les bornes 800 V les plus proches d'une adresse ou de ta position.
+Le widget affiche les bornes 800 V les plus proches d'une adresse ou de ta position, en France et en Espagne.
 Un appui ouvre la carte `index.html`, centrée sur le point recherché ou sur la fiche de la station touchée.
 
 ## 1. Mettre la carte en ligne (une seule fois)
@@ -26,7 +26,7 @@ Après une ou deux minutes, la carte est en ligne sur https://xavierlesage.githu
 2. Appui long sur le widget → **Modifier le widget** :
    - **Script** : « Bornes 800V »
    - **When Interacting** : laisser la valeur par défaut (« Open App ») ; les liens vers la carte sont fournis par le script
-   - **Parameter** : une adresse ou une ville (ex. `Lyon`, `Aire de Tours Longue Vue`), ou **vide** pour ta position.
+   - **Parameter** : une adresse ou une ville, en France ou en Espagne (ex. `Lyon`, `Aire de Tours Longue Vue`, `Bilbao`), ou **vide** pour ta position.
 
 Tu peux ajouter plusieurs widgets avec des paramètres différents (domicile, bureau, une étape de trajet…).
 
