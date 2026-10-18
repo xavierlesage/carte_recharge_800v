@@ -79,14 +79,19 @@ def vrai(valeur):
 
 
 def lire_irve(chemin, pmin):
-    """Stations françaises : une ligne par point de charge dans le fichier IRVE."""
+    """Stations françaises : une ligne par point de charge dans le fichier IRVE.
+    Renvoie aussi, pour l'historique, la date de mise en service de chaque point de charge
+    rapide, tous réseaux confondus."""
     stations = {}
+    points = {}
     date_donnees = ""
     with open(chemin, encoding="utf-8") as f:
-        for ligne in csv.DictReader(f):
+        for n, ligne in enumerate(csv.DictReader(f)):
             p = puissance_kw(ligne["puissance_nominale"])
             if p < pmin or not vrai(ligne["prise_type_combo_ccs"]):
                 continue
+            id_pdc = ligne["id_pdc_itinerance"].strip() or ligne["id_pdc_local"].strip() or n
+            points[id_pdc] = points.get(id_pdc) or ligne["date_mise_en_service"].strip()
             try:
                 lon = round(float(ligne["consolidated_longitude"]), 5)
                 lat = round(float(ligne["consolidated_latitude"]), 5)
@@ -118,7 +123,41 @@ def lire_irve(chemin, pmin):
                 s["nbre_pdc"] = max(s["nbre_pdc"], int(float(ligne["nbre_pdc"])))
             except ValueError:
                 pass
-    return stations, date_donnees
+    return stations, points, date_donnees
+
+
+def ecrire_historique(points, date_donnees, pmin):
+    """historique.json : ajouts mensuels de points de charge rapides reconstitués d'après leur
+    date de mise en service, et total relevé à chaque génération (instantanés)."""
+    chemin = os.path.join(ICI, "historique.json")
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            instantanes = json.load(f).get("instantanes", [])
+    except (OSError, ValueError):
+        instantanes = []
+    instantanes = [i for i in instantanes if i["date"] != date_donnees]
+    instantanes.append({"date": date_donnees, "pdc": len(points)})
+    instantanes.sort(key=lambda i: i["date"])
+
+    # Dates absentes, mal formées ou hors de [2010, date des données] : point « sans date ».
+    ajouts = collections.Counter(d[:7] for d in points.values()
+                                 if re.fullmatch(r"\d{4}-\d\d-\d\d", d) and "2010-01-01" <= d <= date_donnees)
+    mensuel, cumul = [], 0
+    if ajouts:
+        annee, mois = map(int, min(ajouts).split("-"))
+        fin = date_donnees[:7]
+        while f"{annee}-{mois:02}" <= fin:
+            cle = f"{annee}-{mois:02}"
+            cumul += ajouts[cle]
+            mensuel.append({"mois": cle, "ajouts": ajouts[cle], "cumul": cumul})
+            annee, mois = (annee + 1, 1) if mois == 12 else (annee, mois + 1)
+
+    with open(chemin, "w", encoding="utf-8") as f:
+        json.dump({"date_donnees": date_donnees, "puissance_min_kw": pmin,
+                   "total": len(points), "sans_date": len(points) - cumul,
+                   "mensuel": mensuel, "instantanes": instantanes},
+                  f, ensure_ascii=False, separators=(",", ":"))
+    return mensuel
 
 
 NS = {
@@ -226,7 +265,8 @@ def main():
     p_probable = config["probable_si_puissance_kw"]
     v_min = config["tension_min_v"]
 
-    stations, date_fr = lire_irve(args.irve or telecharger_csv(), pmin)
+    stations, points, date_fr = lire_irve(args.irve or telecharger_csv(), pmin)
+    mensuel = ecrire_historique(points, date_fr, pmin)
     stations_es, date_es = lire_dgt(args.dgt or telecharger_dgt(), pmin)
     stations.update(stations_es)
 
@@ -292,6 +332,10 @@ def main():
 
     print(f"{len(fusion)} stations (après dédoublonnage) CCS ≥ {pmin} kW — "
           f"données France au {date_fr}, Espagne au {date_es}")
+    if len(mensuel) >= 2:
+        dernier = mensuel[-2]
+        print(f"Historique France : {len(points)} points de charge CCS ≥ {pmin} kW, tous réseaux "
+              f"(+{dernier['ajouts']} mis en service en {dernier['mois']})")
     for (pays, niveau), n in sorted(stats.items()):
         print(f"  {pays} {niveau:9} {n}")
     for pays in ("FR", "ES"):

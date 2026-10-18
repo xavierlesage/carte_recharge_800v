@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Historique des bornes rapides</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2330; --muted: #5d6675; --border: #d9dee6;
+    --panel: #f6f7f9; --accent: #2457c5; --provisoire: #9fb6e6; --grille: #e8ebf0;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161d; --fg: #e8ebf0; --muted: #9aa3b2; --border: #2e3542;
+      --panel: #181d26; --accent: #7aa2ff; --provisoire: #3d5287; --grille: #232a35;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 960px; margin: 0 auto; padding: 20px 16px 40px; }
+  a { color: var(--accent); }
+  .retour { display: inline-block; margin-bottom: 14px; font-size: 13px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 0 0 2px; }
+  .sous-titre, .legende { color: var(--muted); font-size: 13px; margin: 0 0 14px; }
+  .indicateurs { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 12px; margin: 18px 0 24px; }
+  .tuile { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .tuile .libelle { color: var(--muted); font-size: 12.5px; }
+  .tuile .valeur { font-size: 26px; font-weight: 600; line-height: 1.2; margin-top: 2px; }
+  .tuile.principale .valeur { font-size: 48px; }
+  .tuile .detail { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  section { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; margin-bottom: 16px; }
+  .entete { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 8px; }
+  .periodes { display: inline-flex; border: 1px solid var(--border); border-radius: 8px; overflow: hidden; }
+  .periodes button { font: inherit; font-size: 13px; padding: 5px 10px; border: 0; background: var(--bg); color: var(--fg); cursor: pointer; }
+  .periodes button + button { border-left: 1px solid var(--border); }
+  .periodes button[aria-pressed="true"] { background: var(--accent); color: #fff; }
+  .graphique { position: relative; height: 280px; }
+  .cle { display: inline-flex; align-items: center; gap: 6px; margin-right: 14px; }
+  .cle i { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 8px; border-bottom: 1px solid var(--border); text-align: right; }
+  th:first-child, td:first-child { text-align: left; }
+  th { color: var(--muted); font-weight: 600; font-size: 12.5px; }
+  td small { color: var(--muted); }
+  .avertissement { font-size: 12.5px; color: var(--muted); }
+  .avertissement li { margin: 4px 0; }
+</style>
+</head>
+<body>
+<main>
+  <a class="retour" href="index.html">← Carte des bornes 800 V</a>
+  <h1>Historique des bornes de recharge rapide en France</h1>
+  <p class="sous-titre" id="sous-titre">Chargement…</p>
+
+  <div class="indicateurs">
+    <div class="tuile principale"><div class="libelle">Points de charge rapides</div><div class="valeur" id="total">–</div><div class="detail" id="total-detail"></div></div>
+    <div class="tuile"><div class="libelle" id="mois-dernier-libelle">Mois dernier</div><div class="valeur" id="mois-dernier">–</div><div class="detail">provisoire, déclarations en retard</div></div>
+    <div class="tuile"><div class="libelle" id="mois-courant-libelle">Ce mois-ci</div><div class="valeur" id="mois-courant">–</div><div class="detail">mois en cours</div></div>
+    <div class="tuile"><div class="libelle">Moyenne mensuelle</div><div class="valeur" id="moyenne">–</div><div class="detail" id="moyenne-detail"></div></div>
+  </div>
+
+  <section>
+    <div class="entete">
+      <div>
+        <h2>Points de charge rapides en service (cumul)</h2>
+        <p class="legende">Points mis en service avec une date déclarée, cumulés mois par mois</p>
+      </div>
+      <div class="periodes" role="group" aria-label="Période">
+        <button data-mois="24" aria-pressed="true">2 ans</button><button data-mois="60" aria-pressed="false">5 ans</button><button data-mois="0" aria-pressed="false">Tout</button>
+      </div>
+    </div>
+    <div class="graphique"><canvas id="graphique-cumul" aria-label="Cumul des points de charge rapides par mois"></canvas></div>
+  </section>
+
+  <section>
+    <h2>Mises en service par mois</h2>
+    <p class="legende"><span class="cle"><i style="background:var(--accent)"></i>Mois consolidé</span><span class="cle"><i style="background:var(--provisoire)"></i>Provisoire (3 derniers mois)</span></p>
+    <div class="graphique"><canvas id="graphique-ajouts" aria-label="Points de charge rapides mis en service chaque mois"></canvas></div>
+  </section>
+
+  <section id="bloc-instantanes" hidden>
+    <h2>Total relevé à chaque mise à jour</h2>
+    <p class="legende">Nombre de points dans le fichier national à chaque génération de la carte : inclut les points sans date, reflète aussi les retraits et les corrections du fichier</p>
+    <div class="graphique"><canvas id="graphique-instantanes" aria-label="Total relevé à chaque mise à jour"></canvas></div>
+  </section>
+
+  <section>
+    <h2>12 derniers mois</h2>
+    <table>
+      <thead><tr><th>Mois</th><th>Mises en service</th><th>Cumul</th></tr></thead>
+      <tbody id="tableau"></tbody>
+    </table>
+  </section>
+
+  <section class="avertissement">
+    <h2>À propos des chiffres</h2>
+    <ul>
+      <li>Source : <a href="https://www.data.gouv.fr/fr/datasets/5448d3e0c751df01f85d0572/" target="_blank" rel="noopener">base nationale des IRVE</a> (data.gouv.fr). Sont comptés tous les points de charge équipés d'une prise CCS d'au moins <span class="seuil">150</span> kW, tous réseaux confondus (pas seulement les bornes 800 V de la carte).</li>
+      <li>Le fichier national ne garde pas d'historique : l'évolution est reconstituée d'après la date de mise en service de chaque point. <span id="sans-date"></span> Les points retirés du fichier n'apparaissent pas dans cette reconstitution.</li>
+      <li>Les opérateurs déclarent souvent leurs bornes plusieurs mois après leur mise en service : les derniers mois sont sous-estimés et seront revus à la hausse aux prochaines mises à jour.</li>
+    </ul>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script>
+const nombre = n => n.toLocaleString('fr-FR');
+const signe = n => (n >= 0 ? '+' : '−') + nombre(Math.abs(n));
+const nomMois = (cle, court) => new Date(cle + '-01T12:00:00').toLocaleDateString('fr-FR', { month: court ? 'short' : 'long', year: 'numeric' });
+const couleur = nom => getComputedStyle(document.documentElement).getPropertyValue(nom).trim();
+const PROVISOIRES = 3;
+
+function options(donnees, compact) {
+  return {
+    responsive: true, maintainAspectRatio: false, animation: false,
+    interaction: { mode: 'index', intersect: false },
+    plugins: { legend: { display: false }, tooltip: { displayColors: false, callbacks: {
+      title: items => donnees.titre(items[0].dataIndex),
+      label: item => donnees.etiquette(item.dataIndex),
+    } } },
+    scales: {
+      x: { grid: { display: false }, border: { color: couleur('--border') },
+        ticks: { color: couleur('--muted'), maxRotation: 0, autoSkip: true, maxTicksLimit: 8 } },
+      y: { beginAtZero: !compact, grid: { color: couleur('--grille') }, border: { display: false },
+        ticks: { color: couleur('--muted'), maxTicksLimit: 6,
+          callback: v => v >= 1000 ? nombre(v / 1000) + ' k' : nombre(v) } },
+    },
+  };
+}
+
+fetch('historique.json').then(r => r.json()).then(h => {
+  const mensuel = h.mensuel;
+  const dernier = mensuel.length - 1;
+  const date = new Date(h.date_donnees + 'T12:00:00').toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('sous-titre').textContent =
+    `Points de charge CCS ≥ ${h.puissance_min_kw} kW, tous réseaux · données au ${date}`;
+  document.querySelectorAll('.seuil').forEach(e => e.textContent = h.puissance_min_kw);
+
+  document.getElementById('total').textContent = nombre(h.total);
+  const inst = h.instantanes;
+  document.getElementById('total-detail').textContent = inst.length >= 2
+    ? `${signe(h.total - inst[inst.length - 2].pdc)} depuis le relevé du ${new Date(inst[inst.length - 2].date + 'T12:00:00').toLocaleDateString('fr-FR')}`
+    : `dont ${nombre(h.sans_date)} sans date de mise en service`;
+
+  document.getElementById('mois-dernier-libelle').textContent = 'Mis en service en ' + nomMois(mensuel[dernier - 1].mois);
+  document.getElementById('mois-dernier').textContent = signe(mensuel[dernier - 1].ajouts);
+  document.getElementById('mois-courant-libelle').textContent = 'Mis en service en ' + nomMois(mensuel[dernier].mois);
+  document.getElementById('mois-courant').textContent = signe(mensuel[dernier].ajouts);
+  // Moyenne sur les 12 mois consolidés (hors mois provisoires)
+  const consolides = mensuel.slice(0, mensuel.length - PROVISOIRES).slice(-12);
+  document.getElementById('moyenne').textContent = signe(Math.round(consolides.reduce((t, m) => t + m.ajouts, 0) / consolides.length));
+  document.getElementById('moyenne-detail').textContent =
+    `de ${nomMois(consolides[0].mois, true)} à ${nomMois(consolides[consolides.length - 1].mois, true)}`;
+  document.getElementById('sans-date').textContent =
+    `${nombre(h.sans_date)} points sans date de mise en service exploitable sont comptés dans le total mais pas dans les courbes.`;
+
+  document.getElementById('tableau').innerHTML = mensuel.slice(-12).reverse().map((m, i) =>
+    `<tr><td>${nomMois(m.mois)}${i < PROVISOIRES ? ' <small>(provisoire)</small>' : ''}</td><td>${signe(m.ajouts)}</td><td>${nombre(m.cumul)}</td></tr>`).join('');
+
+  const accent = couleur('--accent');
+  const cumul = new Chart(document.getElementById('graphique-cumul'), {
+    type: 'line', data: { labels: [], datasets: [{ data: [], borderColor: accent, borderWidth: 2,
+      backgroundColor: accent + '1a', fill: true, pointRadius: 0, pointHoverRadius: 5,
+      pointHoverBackgroundColor: accent, pointHoverBorderColor: couleur('--panel'), pointHoverBorderWidth: 2, tension: .2 }] },
+  });
+  const ajouts = new Chart(document.getElementById('graphique-ajouts'), {
+    type: 'bar', data: { labels: [], datasets: [{ data: [], backgroundColor: [], maxBarThickness: 24,
+      borderRadius: { topLeft: 4, topRight: 4 }, borderSkipped: 'start' }] },
+  });
+
+  function afficher(nbMois) {
+    const serie = nbMois ? mensuel.slice(-nbMois) : mensuel;
+    const decalage = mensuel.length - serie.length;
+    const libelles = serie.map(m => nomMois(m.mois, true));
+    const titre = i => nomMois(serie[i].mois);
+    cumul.options = options({ titre, etiquette: i => `${nombre(serie[i].cumul)} points en service` }, true);
+    cumul.data.labels = libelles;
+    cumul.data.datasets[0].data = serie.map(m => m.cumul);
+    cumul.update();
+    ajouts.options = options({ titre, etiquette: i => `${signe(serie[i].ajouts)} points mis en service`
+      + (decalage + i >= mensuel.length - PROVISOIRES ? ' (provisoire)' : '') }, false);
+    ajouts.data.labels = libelles;
+    ajouts.data.datasets[0].data = serie.map(m => m.ajouts);
+    ajouts.data.datasets[0].backgroundColor = serie.map((_, i) =>
+      decalage + i >= mensuel.length - PROVISOIRES ? couleur('--provisoire') : accent);
+    ajouts.update();
+  }
+  document.querySelectorAll('.periodes button').forEach(b => b.addEventListener('click', () => {
+    document.querySelectorAll('.periodes button').forEach(x => x.setAttribute('aria-pressed', x === b));
+    afficher(+b.dataset.mois);
+  }));
+  afficher(24);
+
+  if (inst.length >= 2) {
+    document.getElementById('bloc-instantanes').hidden = false;
+    const dateCourte = d => new Date(d + 'T12:00:00').toLocaleDateString('fr-FR');
+    const graphique = new Chart(document.getElementById('graphique-instantanes'), {
+      type: 'line', data: { labels: inst.map(i => dateCourte(i.date)), datasets: [{ data: inst.map(i => i.pdc),
+        borderColor: accent, borderWidth: 2, pointRadius: 4, pointBackgroundColor: accent,
+        pointBorderColor: couleur('--panel'), pointBorderWidth: 2, pointHoverRadius: 6 }] },
+    });
+    graphique.options = options({ titre: i => 'Relevé du ' + dateCourte(inst[i].date),
+      etiquette: i => `${nombre(inst[i].pdc)} points` + (i ? ` (${signe(inst[i].pdc - inst[i - 1].pdc)})` : '') }, true);
+    graphique.update();
+  }
+}).catch(() => {
+  document.getElementById('sous-titre').textContent = "Impossible de charger l'historique.";
+});
+</script>
+</body>
+</html>
