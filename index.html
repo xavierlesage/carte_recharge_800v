@@ -10,13 +10,13 @@
   :root {
     --bg: #ffffff; --fg: #1d2330; --muted: #5d6675; --border: #d9dee6;
     --panel: rgba(255,255,255,.96); --confirme: #11865a; --probable: #d97706;
-    --accent: #2457c5; --tile-filter: none;
+    --accent: #2457c5; --favori: #e0a800; --tile-filter: none;
   }
   @media (prefers-color-scheme: dark) {
     :root {
       --bg: #12161d; --fg: #e8ebf0; --muted: #9aa3b2; --border: #2e3542;
       --panel: rgba(22,27,35,.96); --confirme: #2fbf84; --probable: #f59e0b;
-      --accent: #7aa2ff; --tile-filter: brightness(.75) contrast(1.1) saturate(.8);
+      --accent: #7aa2ff; --favori: #ffcc33; --tile-filter: brightness(.75) contrast(1.1) saturate(.8);
     }
   }
   * { box-sizing: border-box; }
@@ -61,11 +61,21 @@
   .avertissement { font-size: 12px; color: var(--muted); margin: 12px 0 0; border-top: 1px solid var(--border); padding-top: 10px; }
   #replier { display: none; }
 
+  #liste-favoris { list-style: none; margin: 6px 0 0; padding: 0; }
+  #liste-favoris li { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-top: 1px solid var(--border); }
+  #liste-favoris li:first-child { border-top: 0; }
+  #liste-favoris .aller { flex: 1; min-width: 0; text-align: left; border: 0; padding: 2px 0; background: none; }
+  #liste-favoris .aller small { display: block; color: var(--muted); font-size: 12px; }
+  #liste-favoris .retirer { border: 0; background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; line-height: 1; }
+  #liste-favoris .vide { color: var(--muted); font-size: 12.5px; border: 0; }
+  #liste-favoris .absente small { color: var(--probable); }
+
   .pin-position svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
 
   .borne-icone {border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
   .borne-icone.confirme { background: var(--confirme); }
   .borne-icone.probable { background: var(--probable); }
+  .borne-icone.favori { box-shadow: 0 0 0 3px var(--favori), 0 1px 5px rgba(0,0,0,.5); }
 
   .marker-cluster { border-radius: 50%; background: color-mix(in srgb, var(--accent) 35%, transparent);
     display: flex; align-items: center; justify-content: center; }
@@ -87,6 +97,8 @@
   .popup .badge.confirme { background: var(--confirme); }
   .popup .badge.probable { background: var(--probable); }
   .popup .raison { font-size: 12px; color: var(--muted); }
+  .popup .btn-favori { width: 100%; margin-top: 8px; font-weight: 600; }
+  .popup .btn-favori[aria-pressed="true"] { color: var(--favori); border-color: var(--favori); }
   .popup .liens { display: flex; gap: 8px; margin-top: 8px; }
   .popup .liens a { flex: 1; text-align: center; padding: 6px; border-radius: 8px; border: 1px solid var(--border);
     color: var(--accent); text-decoration: none; font-weight: 600; }
@@ -130,6 +142,11 @@
           role="combobox" aria-expanded="false" aria-controls="suggestions-reseau" aria-autocomplete="list">
         <ul id="suggestions-reseau" class="suggestions" role="listbox" hidden></ul>
       </div>
+    </fieldset>
+    <fieldset>
+      <legend>Favoris</legend>
+      <label class="niveau"><input type="checkbox" id="seulement-favoris"> Afficher uniquement mes favoris</label>
+      <ul id="liste-favoris"></ul>
     </fieldset>
     <button id="localiser">📍 Me localiser</button>
     <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : en France, les données publiques n'indiquent pas la tension des bornes. En Espagne, la tension maximale déclarée par l'opérateur est utilisée quand elle est connue (bornes déclarées sous 800 V exclues). Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
@@ -176,6 +193,7 @@ function popup(p, lat, lon) {
     ${p.mise_en_service ? `<div class="ligne">Mise en service : ${echapper(p.mise_en_service)}</div>` : ''}
     <span class="badge ${p.niveau}">${libelle}</span>
     <div class="raison">${echapper(p.raison)}</div>
+    ${boutonFavori(cleBorne(lat, lon))}
     <div class="liens">
       <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener">Google Maps</a>
       <a href="https://waze.com/ul?ll=${lat},${lon}&navigate=yes" target="_blank" rel="noopener">Waze</a>
@@ -184,6 +202,76 @@ function popup(p, lat, lon) {
 }
 
 let marqueurs = [];
+
+// Favoris : gardés dans le navigateur (localStorage), identifiés par les coordonnées de la station.
+// Nom, réseau et puissance sont mémorisés pour lister un favori même absent des données actuelles.
+const CLE_FAVORIS = 'bornes800v.favoris';
+const cleBorne = (lat, lon) => `${lat},${lon}`;
+let favoris = {};
+try { favoris = JSON.parse(localStorage.getItem(CLE_FAVORIS)) || {}; } catch {}
+const parCle = new Map();   // clé → marqueur
+
+function enregistrerFavoris() {
+  try { localStorage.setItem(CLE_FAVORIS, JSON.stringify(favoris)); } catch {}
+}
+function boutonFavori(cle) {
+  const actif = cle in favoris;
+  return `<button class="btn-favori" data-cle="${cle}" aria-pressed="${actif}">${actif ? '★ Dans mes favoris' : '☆ Ajouter aux favoris'}</button>`;
+}
+function iconeBorne(p, favori) {
+  const taille = p.kw >= 300 ? 20 : p.kw >= 200 ? 16 : 13;
+  return L.divIcon({ className: `borne-icone ${p.niveau}${favori ? ' favori' : ''}`, iconSize: [taille, taille] });
+}
+function basculerFavori(cle) {
+  const m = parCle.get(cle);
+  if (cle in favoris) delete favoris[cle];
+  else favoris[cle] = { nom: m.borne.nom || reseauDe(m.borne), reseau: reseauDe(m.borne), kw: m.borne.kw, ajout: new Date().toISOString().slice(0, 10) };
+  enregistrerFavoris();
+  if (m) m.setIcon(iconeBorne(m.borne, cle in favoris));
+  afficherFavoris();
+  if (document.getElementById('seulement-favoris').checked) filtrer();
+}
+function afficherFavoris() {
+  const cles = Object.keys(favoris).sort((a, b) => favoris[a].nom.localeCompare(favoris[b].nom, 'fr'));
+  document.getElementById('liste-favoris').innerHTML = cles.length ? cles.map(cle => {
+    const f = favoris[cle], absente = marqueurs.length && !parCle.has(cle);
+    return `<li${absente ? ' class="absente"' : ''}>
+      <button class="aller" data-cle="${cle}">${echapper(f.nom)}<small>${absente ? 'Absente des données actuelles' : `${echapper(f.reseau)} · ${f.kw} kW`}</small></button>
+      <button class="retirer" data-cle="${cle}" title="Retirer des favoris" aria-label="Retirer ${echapper(f.nom)} des favoris">×</button>
+    </li>`;
+  }).join('') : '<li class="vide">Aucun favori : ouvrez la fiche d\'une station et touchez « ☆ Ajouter aux favoris ».</li>';
+}
+document.getElementById('liste-favoris').addEventListener('click', e => {
+  const bouton = e.target.closest('button[data-cle]');
+  if (!bouton) return;
+  const cle = bouton.dataset.cle;
+  if (bouton.classList.contains('retirer')) {
+    if (parCle.has(cle)) basculerFavori(cle);
+    else { delete favoris[cle]; enregistrerFavoris(); afficherFavoris(); }
+    return;
+  }
+  const [lat, lon] = cle.split(',').map(Number);
+  const m = parCle.get(cle);
+  if (m && groupe.hasLayer(m)) groupe.zoomToShowLayer(m, () => m.openPopup());
+  else if (m) {   // masquée par les filtres : fiche ouverte hors des groupes
+    carte.setView([lat, lon], 15);
+    L.popup().setLatLng([lat, lon]).setContent(popup(m.borne, lat, lon)).openOn(carte);
+  } else carte.setView([lat, lon], 15);
+  replierSurMobile();
+});
+carte.on('popupopen', e => {
+  const bouton = e.popup.getElement().querySelector('.btn-favori');
+  if (!bouton) return;
+  bouton.addEventListener('click', () => {
+    basculerFavori(bouton.dataset.cle);
+    const actif = bouton.dataset.cle in favoris;
+    bouton.setAttribute('aria-pressed', actif);
+    bouton.textContent = actif ? '★ Dans mes favoris' : '☆ Ajouter aux favoris';
+  });
+});
+document.getElementById('seulement-favoris').addEventListener('change', filtrer);
+afficherFavoris();
+
 let reseauChoisi = '';   // '' = tous les réseaux
 let reseaux = [];        // [{ nom, nb }] trié par nom
 
@@ -191,9 +279,10 @@ function filtrer() {
   const niveaux = new Set([...document.querySelectorAll('.niveau input:checked')].map(i => i.value));
   const pmin = +document.getElementById('pmin').value;
   const reseau = reseauChoisi;
+  const seulementFavoris = document.getElementById('seulement-favoris').checked;
   document.getElementById('pmin-val').textContent = pmin;
   const visibles = marqueurs.filter(m => niveaux.has(m.borne.niveau) && m.borne.kw >= pmin
-    && (!reseau || reseauDe(m.borne) === reseau));
+    && (!reseau || reseauDe(m.borne) === reseau) && (!seulementFavoris || m.cle in favoris));
   groupe.clearLayers();
   groupe.addLayers(visibles);
   const n = visibles.length;
@@ -209,12 +298,11 @@ fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
   marqueurs = donnees.features.map(f => {
     const [lon, lat] = f.geometry.coordinates;
     const p = f.properties;
-    const taille = p.kw >= 300 ? 20 : p.kw >= 200 ? 16 : 13;
-    const m = L.marker([lat, lon], {
-      icon: L.divIcon({ className: `borne-icone ${p.niveau}`, iconSize: [taille, taille] }),
-      title: `${reseauDe(p)} · ${p.kw} kW`
-    });
+    const cle = cleBorne(lat, lon);
+    const m = L.marker([lat, lon], { icon: iconeBorne(p, cle in favoris), title: `${reseauDe(p)} · ${p.kw} kW` });
     m.borne = p;
+    m.cle = cle;
+    parCle.set(cle, m);
     m.bindPopup(() => popup(p, lat, lon));
     return m;
   });
@@ -223,6 +311,7 @@ fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
   marqueurs.forEach(m => { const r = reseauDe(m.borne); comptes[r] = (comptes[r] || 0) + 1; });
   reseaux = Object.keys(comptes).sort((a, b) => a.localeCompare(b, 'fr')).map(nom => ({ nom, nb: comptes[nom] }));
   filtrer();
+  afficherFavoris();
   ouvrirDepuisUrl();
 }).catch(() => {
   document.getElementById('compteur').textContent = 'Impossible de charger bornes_800v.geojson';
@@ -335,11 +424,15 @@ combobox(champAdresse, document.getElementById('suggestions-adresse'), {
     champAdresse.blur();
     carte.setView([lat, lon], r.zoom);
     placerRepere(lat, lon, r.libelle);
-    if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
-      document.getElementById('replier').click();
-    }
+    replierSurMobile();
   }
 });
+
+function replierSurMobile() {
+  if (window.matchMedia('(max-width: 640px)').matches && !panneau.classList.contains('replie')) {
+    document.getElementById('replier').click();
+  }
+}
 
 function placerRepere(lat, lon, libelle) {
   if (repere) repere.remove();
