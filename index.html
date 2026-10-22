@@ -61,7 +61,9 @@
   .avertissement { font-size: 12px; color: var(--muted); margin: 12px 0 0; border-top: 1px solid var(--border); padding-top: 10px; }
   #replier { display: none; }
 
-  .borne-icone { border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
+  .pin-position svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
+
+  .borne-icone {border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0,0,0,.45); }
   .borne-icone.confirme { background: var(--confirme); }
   .borne-icone.probable { background: var(--probable); }
 
@@ -393,13 +395,43 @@ champReseau.addEventListener('blur', () => {
   setTimeout(() => { if (champReseau.value.trim()) champReseau.value = reseauChoisi; }, 160);
 });
 
-let position;
-document.getElementById('localiser').addEventListener('click', () => carte.locate({ setView: true, maxZoom: 11 }));
-carte.on('locationfound', e => {
-  if (position) position.remove();
-  position = L.circleMarker(e.latlng, { radius: 8, color: '#fff', weight: 3, fillColor: '#2457c5', fillOpacity: 1 }).addTo(carte);
+// Position du navigateur : pin rose suivi en continu dès l'ouverture de la page.
+// La carte n'est centrée dessus qu'au premier relevé (sauf si un lien l'a déjà centrée) ou via le bouton.
+const pinRose = L.divIcon({
+  className: 'pin-position', iconSize: [30, 40], iconAnchor: [15, 40], tooltipAnchor: [0, -36],
+  html: `<svg width="30" height="40" viewBox="0 0 30 40" aria-hidden="true">
+    <path d="M15 38.5S2.5 23 2.5 14a12.5 12.5 0 0 1 25 0c0 9-12.5 24.5-12.5 24.5z" fill="#e8318a" stroke="#fff" stroke-width="2.5"/>
+    <circle cx="15" cy="14" r="5" fill="#fff"/></svg>`
 });
-carte.on('locationerror', () => alert('Localisation indisponible (autorisation refusée ou page non servie en HTTPS).'));
+let position, precision, suivi = false, demande = false;
+let centrer = !/[?&](lat|borne)=/.test(location.search);
+
+function suivrePosition() {
+  if (suivi) return;
+  suivi = true;
+  carte.locate({ watch: true, enableHighAccuracy: true, maximumAge: 30000 });
+}
+document.getElementById('localiser').addEventListener('click', () => {
+  if (position) carte.setView(position.getLatLng(), Math.max(carte.getZoom(), 11));
+  else { centrer = demande = true; suivrePosition(); }
+});
+carte.on('locationfound', e => {
+  if (!position) {
+    precision = L.circle(e.latlng, { radius: e.accuracy, color: '#e8318a', weight: 1, fillOpacity: .12, interactive: false }).addTo(carte);
+    position = L.marker(e.latlng, { icon: pinRose, zIndexOffset: 1000, keyboard: false })
+      .bindTooltip('Vous êtes ici', { direction: 'top' }).addTo(carte);
+  } else {
+    position.setLatLng(e.latlng);
+    precision.setLatLng(e.latlng).setRadius(e.accuracy);
+  }
+  if (centrer) { carte.setView(e.latlng, Math.max(carte.getZoom(), 11)); centrer = false; }
+});
+carte.on('locationerror', e => {
+  if (e.code === 1) { carte.stopLocate(); suivi = false; }   // autorisation refusée : inutile de continuer
+  if (demande) alert('Localisation indisponible (autorisation refusée ou page non servie en HTTPS).');
+  demande = centrer = false;
+});
+suivrePosition();
 
 const panneau = document.getElementById('panneau');
 document.getElementById('replier').addEventListener('click', e => {
