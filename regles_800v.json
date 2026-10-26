@@ -1,7 +1,9 @@
 {
-  "_doc": "Classement des stations par motif (regex, insensible à la casse) sur 'opérateur | enseigne | aménageur | code opérateur'. La première règle qui correspond gagne. niveau = confirme | probable | exclu. reseau = nom affiché et utilisé pour regrouper les doublons. Quand la tension est déclarée (données espagnoles), elle prime : ≥ tension_min_v → confirmé, en dessous → exclu ; une règle « exclu » prime sur la tension, sauf si elle porte tension_prioritaire (exclusion motivée par la tension elle-même). noms_reseaux : nom affiché pour les opérateurs sans règle.",
-  "puissance_min_kw": 150,
+  "_doc": "Classement des stations par motif (regex, insensible à la casse) sur 'opérateur | enseigne | aménageur | code opérateur'. La première règle qui correspond gagne. niveau = confirme | probable | exclu. reseau = nom affiché et utilisé pour regrouper les doublons. Quand la tension est déclarée (données espagnoles), elle prime : ≥ tension_min_v → confirmé, en dessous → exclu ; une règle « exclu » prime sur la tension, sauf si elle porte tension_prioritaire (exclusion motivée par la tension elle-même). Une règle « confirme » ne donne que « probable » sous confirme_si_puissance_kw (la tension déclarée, elle, prime toujours). noms_reseaux : nom affiché pour les opérateurs sans règle.",
+  "puissance_min_kw": 50,
+  "puissance_historique_kw": 150,
   "probable_si_puissance_kw": 300,
+  "confirme_si_puissance_kw": 100,
   "tension_min_v": 800,
   "regles": [
     {

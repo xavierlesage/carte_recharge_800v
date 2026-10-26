@@ -3,7 +3,7 @@
   - France : fichier national IRVE (data.gouv.fr) ;
   - Espagne : publication DATEX II des « electrolineras » du Point d'accès national (DGT / MITERD).
 
-Usage : python3 build_geojson.py [--irve chemin_csv] [--dgt chemin_xml]
+Usage : python3 build_geojson.py [--irve chemin_csv] [--dgt chemin_xml | --garder-es]
 Sans argument, télécharge la dernière version de chaque source.
 """
 import argparse
@@ -78,10 +78,10 @@ def vrai(valeur):
     return valeur.strip().lower() in ("true", "1", "oui")
 
 
-def lire_irve(chemin, pmin):
+def lire_irve(chemin, pmin, p_historique):
     """Stations françaises : une ligne par point de charge dans le fichier IRVE.
     Renvoie aussi, pour l'historique, la date de mise en service de chaque point de charge
-    rapide, tous réseaux confondus."""
+    rapide (≥ p_historique), tous réseaux confondus."""
     stations = {}
     points = {}
     date_donnees = ""
@@ -90,8 +90,9 @@ def lire_irve(chemin, pmin):
             p = puissance_kw(ligne["puissance_nominale"])
             if p < pmin or not vrai(ligne["prise_type_combo_ccs"]):
                 continue
-            id_pdc = ligne["id_pdc_itinerance"].strip() or ligne["id_pdc_local"].strip() or n
-            points[id_pdc] = points.get(id_pdc) or ligne["date_mise_en_service"].strip()
+            if p >= p_historique:
+                id_pdc = ligne["id_pdc_itinerance"].strip() or ligne["id_pdc_local"].strip() or n
+                points[id_pdc] = points.get(id_pdc) or ligne["date_mise_en_service"].strip()
             try:
                 lon = round(float(ligne["consolidated_longitude"]), 5)
                 lat = round(float(ligne["consolidated_latitude"]), 5)
@@ -229,7 +230,7 @@ def lire_dgt(chemin, pmin):
     return stations, date_donnees
 
 
-def classer(s, regles, noms, p_probable, v_min):
+def classer(s, regles, noms, p_probable, v_min, p_confirme):
     """Niveau de compatibilité 800 V, raison et nom de réseau d'une station."""
     texte = " | ".join((s["operateur"], s["enseigne"], s["amenageur"], s["code_operateur"]))
     regle = next((r for motif, r in regles if motif.search(texte)), None)
@@ -245,6 +246,8 @@ def classer(s, regles, noms, p_probable, v_min):
             return "probable", f"{regle['raison']} — mais tension déclarée : {t} V, à vérifier", reseau
         return "exclu", f"Tension déclarée : {t} V", reseau
     if regle:
+        if regle["niveau"] == "confirme" and s["pmax"] < p_confirme:
+            return "probable", f"{regle['raison']} — mais borne < {p_confirme} kW, sans doute en 400 V, à vérifier", reseau
         return regle["niveau"], regle["raison"], reseau
     if s["pmax"] >= p_probable:
         return "probable", f"Borne ≥ {p_probable} kW : matériel quasi toujours 800 V+, à vérifier", reseau
@@ -255,6 +258,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--irve", help="fichier CSV IRVE (France) déjà téléchargé")
     parser.add_argument("--dgt", help="fichier XML DATEX II des electrolineras (Espagne) déjà téléchargé")
+    parser.add_argument("--garder-es", action="store_true",
+                        help="ne pas relire l'Espagne : reprendre ses bornes du bornes_800v.geojson actuel "
+                             "(quand le flux de la DGT est indisponible)")
     args = parser.parse_args()
 
     with open(os.path.join(ICI, "regles_800v.json"), encoding="utf-8") as f:
@@ -262,18 +268,27 @@ def main():
     regles = [(re.compile(r["motif"], re.I), r) for r in config["regles"]]
     noms = [(re.compile(m, re.I), nom) for m, nom in config.get("noms_reseaux", {}).items()]
     pmin = config["puissance_min_kw"]
+    p_historique = config["puissance_historique_kw"]
     p_probable = config["probable_si_puissance_kw"]
     v_min = config["tension_min_v"]
+    p_confirme = config["confirme_si_puissance_kw"]
 
-    stations, points, date_fr = lire_irve(args.irve or telecharger_csv(), pmin)
-    mensuel = ecrire_historique(points, date_fr, pmin)
-    stations_es, date_es = lire_dgt(args.dgt or telecharger_dgt(), pmin)
-    stations.update(stations_es)
+    stations, points, date_fr = lire_irve(args.irve or telecharger_csv(), pmin, p_historique)
+    mensuel = ecrire_historique(points, date_fr, p_historique)
+    features_es = []
+    if args.garder_es:
+        with open(os.path.join(ICI, "bornes_800v.geojson"), encoding="utf-8") as f:
+            ancien = json.load(f)
+        features_es = [x for x in ancien["features"] if x["properties"]["pays"] == "ES"]
+        date_es = ancien.get("date_donnees_es", "")
+    else:
+        stations_es, date_es = lire_dgt(args.dgt or telecharger_dgt(), pmin)
+        stations.update(stations_es)
 
     # Classement de chaque station selon la tension déclarée et les règles opérateur / puissance.
     graphies = {}  # une seule graphie par réseau (OBORNES / Obornes…)
     for s in stations.values():
-        s["niveau"], s["raison"], reseau = classer(s, regles, noms, p_probable, v_min)
+        s["niveau"], s["raison"], reseau = classer(s, regles, noms, p_probable, v_min, p_confirme)
         s["reseau"] = graphies.setdefault(reseau.lower(), reseau) or "Inconnu"
         s["nb_pdc"] = max(len(s["pdc"]), s["nbre_pdc"])
 
@@ -325,6 +340,11 @@ def main():
             "properties": proprietes,
         })
 
+    for x in features_es:
+        stats[("ES", x["properties"]["niveau"])] += 1
+        par_reseau[("ES", x["properties"]["niveau"], x["properties"]["reseau"])] += 1
+    features += features_es
+
     sortie = {"type": "FeatureCollection", "date_donnees": date_fr, "date_donnees_es": date_es,
               "features": features}
     with open(os.path.join(ICI, "bornes_800v.geojson"), "w", encoding="utf-8") as f:
@@ -334,7 +354,7 @@ def main():
           f"données France au {date_fr}, Espagne au {date_es}")
     if len(mensuel) >= 2:
         dernier = mensuel[-2]
-        print(f"Historique France : {len(points)} points de charge CCS ≥ {pmin} kW, tous réseaux "
+        print(f"Historique France : {len(points)} points de charge CCS ≥ {p_historique} kW, tous réseaux "
               f"(+{dernier['ajouts']} mis en service en {dernier['mois']})")
     for (pays, niveau), n in sorted(stats.items()):
         print(f"  {pays} {niveau:9} {n}")
@@ -346,7 +366,7 @@ def main():
     print("\nRéseaux exclus :")
     for (pays, reseau), n in exclus.most_common(15):
         print(f"  {n:5}  {pays} {reseau}")
-    print("\nOpérateurs non classés (150–299 kW, masqués) :")
+    print(f"\nOpérateurs non classés ({pmin}–{p_probable - 1} kW, masqués) :")
     for (pays, reseau), n in inconnus.most_common(20):
         print(f"  {n:5}  {pays} {reseau}")
 
