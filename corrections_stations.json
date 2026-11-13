@@ -1,0 +1,11 @@
+{
+  "_doc": "Corrections manuelles de stations mal déclarées dans la source, par identifiant de station (id_station_itinerance pour la France). Champs corrigeables : lat, lon, nom. 'motif' explique la correction. Le script signale les identifiants absents des données (station supprimée ou renommée : correction à retirer).",
+  "stations": {
+    "FRALLPEVCARSVANNE": {
+      "lat": 47.65933,
+      "lon": -2.79036,
+      "nom": "Carrefour Vannes Fourchêne",
+      "motif": "Coordonnées déclarées par Allego (47.65828, -2.76089) situées place Maurice Marchais, à 2,2 km de l'adresse déclarée (101 avenue de la Marne) ; nom déclaré « VANNES »"
+    }
+  }
+}

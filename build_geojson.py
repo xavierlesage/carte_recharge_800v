@@ -285,6 +285,19 @@ def main():
         stations_es, date_es = lire_dgt(args.dgt or telecharger_dgt(), pmin)
         stations.update(stations_es)
 
+    # Corrections manuelles (coordonnées ou nom faux dans la source), avant le dédoublonnage
+    # qui s'appuie sur la position.
+    with open(os.path.join(ICI, "corrections_stations.json"), encoding="utf-8") as f:
+        corrections = json.load(f)["stations"]
+    for cle, c in corrections.items():
+        s = stations.get(cle)
+        if s is None:
+            print(f"Correction inutilisée : station {cle} absente des données")
+            continue
+        for champ in ("lat", "lon", "nom"):
+            if champ in c:
+                s[champ] = c[champ]
+
     # Classement de chaque station selon la tension déclarée et les règles opérateur / puissance.
     graphies = {}  # une seule graphie par réseau (OBORNES / Obornes…)
     for s in stations.values():
