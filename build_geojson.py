@@ -289,10 +289,15 @@ def main():
     # qui s'appuie sur la position.
     with open(os.path.join(ICI, "corrections_stations.json"), encoding="utf-8") as f:
         corrections = json.load(f)["stations"]
+    for cle, s in stations.items():
+        s["id"] = cle
     for cle, c in corrections.items():
         s = stations.get(cle)
         if s is None:
             print(f"Correction inutilisée : station {cle} absente des données")
+            continue
+        if c.get("masquer"):
+            del stations[cle]
             continue
         for champ in ("lat", "lon", "nom"):
             if champ in c:
@@ -339,6 +344,7 @@ def main():
             continue
         par_reseau[(pays, niveau, reseau)] += 1
         proprietes = {
+            "id": s["id"],
             "nom": s["nom"], "adresse": s["adresse"], "commune": s["commune"],
             "reseau": reseau, "operateur": s["operateur"],
             "horaires": s["horaires"], "mise_en_service": s["mise_en_service"],

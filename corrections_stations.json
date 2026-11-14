@@ -1,11 +1,181 @@
 {
-  "_doc": "Corrections manuelles de stations mal déclarées dans la source, par identifiant de station (id_station_itinerance pour la France). Champs corrigeables : lat, lon, nom. 'motif' explique la correction. Le script signale les identifiants absents des données (station supprimée ou renommée : correction à retirer).",
+  "_doc": "Corrections manuelles de stations mal déclarées dans la source, par identifiant de station (id_station_itinerance pour la France). Champs corrigeables : lat, lon, nom ; \"masquer\": true retire la station de la carte. 'motif' explique la correction. Le script signale les identifiants absents des données (station supprimée ou renommée : correction à retirer).",
   "stations": {
     "FRALLPEVCARSVANNE": {
       "lat": 47.65933,
       "lon": -2.79036,
       "nom": "Carrefour Vannes Fourchêne",
       "motif": "Coordonnées déclarées par Allego (47.65828, -2.76089) situées place Maurice Marchais, à 2,2 km de l'adresse déclarée (101 avenue de la Marne) ; nom déclaré « VANNES »"
+    },
+    "FRIONE402700": {
+      "lat": 43.42185,
+      "lon": -0.59859,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE409100 (IONITY Langres Noidant), à 1.9 km de l'adresse de cette station"
+    },
+    "FRIONE402900": {
+      "lat": 43.58678,
+      "lon": -1.42047,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE402700 (IONITY Lacq Audéjos Nord), à 1.7 km de l'adresse de cette station"
+    },
+    "FRIONE403800": {
+      "lat": 46.42105,
+      "lon": 4.86508,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE438800 (IONITY Maison Dieu), à 1.1 km de l'adresse de cette station"
+    },
+    "FRIONE403900": {
+      "lat": 46.13423,
+      "lon": 4.76692,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE402500 (IONITY Tavel Nord), à 0.9 km de l'adresse de cette station"
+    },
+    "FRIONE404300": {
+      "lat": 46.70144,
+      "lon": 0.36684,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE124800 (IONITY Poitou Charentes), à 1.4 km de l'adresse de cette station"
+    },
+    "FRIONE404400": {
+      "lat": 45.88437,
+      "lon": 4.89452,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE421500 (IONITY Montbartier), à 0.4 km de l'adresse de cette station"
+    },
+    "FRIONE408400": {
+      "lat": 45.84387,
+      "lon": 5.07051,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE403800 (IONITY Mâcon Saint-Albain), à 1.6 km de l'adresse de cette station"
+    },
+    "FRIONE408600": {
+      "lat": 48.26387,
+      "lon": 2.72079,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE433500 (IONITY Orléans Nord), à 1.9 km de l'adresse de cette station"
+    },
+    "FRIONE408900": {
+      "lat": 50.57181,
+      "lon": 2.3788,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE437900 (IONITY Rosny Nord), à 0.1 km de l'adresse de cette station"
+    },
+    "FRIONE409300": {
+      "lat": 45.67386,
+      "lon": 5.92998,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE408600 (IONITY Nemours), à 0.9 km de l'adresse de cette station"
+    },
+    "FRIONE410300": {
+      "lat": 47.30968,
+      "lon": 4.50181,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE402200 (IONITY Longué la Couaille), à 0.6 km de l'adresse de cette station"
+    },
+    "FRIONE412500": {
+      "lat": 45.61179,
+      "lon": 5.21279,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE410300 (IONITY Lochères), à 1.1 km de l'adresse de cette station"
+    },
+    "FRIONE416800": {
+      "lat": 48.09518,
+      "lon": -0.69347,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE404400 (IONITY Mionnay Chatanay), à 0.1 km de l'adresse de cette station"
+    },
+    "FRIONE421500": {
+      "lat": 43.9149,
+      "lon": 1.30849,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE403500 (IONITY Montélimar Est), à 0.0 km de l'adresse de cette station"
+    },
+    "FRIONE423400": {
+      "lat": 44.0243,
+      "lon": 4.88957,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE403900 (IONITY Taponas), à 0.3 km de l'adresse de cette station"
+    },
+    "FRIONE431400": {
+      "lat": 45.18893,
+      "lon": -0.49242,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE423400 (IONITY Sorgues), à 1.9 km de l'adresse de cette station"
+    },
+    "FRIONE431700": {
+      "lat": 45.6101,
+      "lon": -0.59865,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE413000 (IONITY Saint-Rambert Ouest), à 0.1 km de l'adresse de cette station"
+    },
+    "FRIONE433500": {
+      "lat": 47.94858,
+      "lon": 1.85972,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE408700 (IONITY Pech Montat Est), à 0.1 km de l'adresse de cette station"
+    },
+    "FRIONE437800": {
+      "lat": 48.56639,
+      "lon": 1.98755,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE408400 (IONITY Lyon-Dagneux Sud), à 1.3 km de l'adresse de cette station"
+    },
+    "FRIONE437900": {
+      "lat": 48.99286,
+      "lon": 1.63404,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE440200 (IONITY Saint Laurent), à 1.0 km de l'adresse de cette station"
+    },
+    "FRIONE438800": {
+      "lat": 47.50438,
+      "lon": 4.03713,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE416800 (IONITY Mayenne), à 0.1 km de l'adresse de cette station"
+    },
+    "FRIONE440200": {
+      "lat": 50.82646,
+      "lon": 2.58532,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE431700 (IONITY Saint Léger Est), à 1.4 km de l'adresse de cette station"
+    },
+    "FRSITE00000212": {
+      "lat": 49.00395,
+      "lon": 2.0773,
+      "motif": "Latitude déclarée par Allego (48.00395) fausse d'un degré : pin à 111 km de l'adresse (9 rue de l'Hautil, Conflans-Sainte-Honorine) ; longitude conservée"
+    },
+    "FRIONE439100": {
+      "lat": 45.13792,
+      "lon": 0.70105,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE404300 (IONITY Poitiers Chincé), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE101400": {
+      "lat": 47.5003,
+      "lon": -0.49106,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE408900 (IONITY Rely), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE124800": {
+      "lat": 46.29617,
+      "lon": -0.37871,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE101400 (IONITY Portes d'Angers Sud), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE402200": {
+      "lat": 47.4185,
+      "lon": -0.13156,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE437800 (IONITY Longvilliers), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE408700": {
+      "lat": 45.03088,
+      "lon": 1.52431,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE439100 (IONITY Perigueux Sud), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE431500": {
+      "lat": 45.27625,
+      "lon": 5.62327,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE412500 (IONITY l'Isle-d'Abeau), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE403300": {
+      "lat": 47.80351,
+      "lon": -0.16809,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré pour FRIONE431400 (IONITY Saugon Ouest), proche de la commune de cette station (adresse trop vague pour un contrôle au mètre)"
+    },
+    "FRIONE402500": {
+      "masquer": true,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré (46.13423, 4.76692) à 236.01 km de l'adresse et appartenant à une autre station ; vraie position introuvable dans les données, à placer à la main"
+    },
+    "FRIONE403500": {
+      "masquer": true,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré (43.9149, 1.30849) à 284.48 km de l'adresse et appartenant à une autre station ; vraie position introuvable dans les données, à placer à la main"
+    },
+    "FRIONE409100": {
+      "masquer": true,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré (43.42185, -0.59859) à 663.13 km de l'adresse et appartenant à une autre station ; vraie position introuvable dans les données, à placer à la main"
+    },
+    "FRIONE410000": {
+      "masquer": true,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré (48.22559, 4.09778) à 338.07 km de l'adresse et appartenant à une autre station ; vraie position introuvable dans les données, à placer à la main"
+    },
+    "FRIONE413000": {
+      "masquer": true,
+      "motif": "Coordonnées Ionity permutées dans la source : pin déclaré (45.6101, -0.59865) à 423.49 km de l'adresse et appartenant à une autre station ; vraie position introuvable dans les données, à placer à la main"
     }
   }
 }
