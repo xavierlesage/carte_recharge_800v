@@ -1,0 +1,118 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mes stations favorites</title>
+<style>
+  :root {
+    --bg: #ffffff; --fg: #1d2330; --muted: #5d6675; --border: #d9dee6;
+    --panel: #f6f7f9; --accent: #2457c5; --confirme: #11865a; --probable: #d97706; --favori: #e0a800;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12161d; --fg: #e8ebf0; --muted: #9aa3b2; --border: #2e3542;
+      --panel: #181d26; --accent: #7aa2ff; --confirme: #2fbf84; --probable: #f59e0b; --favori: #ffcc33;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--fg);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  main { max-width: 720px; margin: 0 auto; padding: 20px 16px 40px; }
+  a { color: var(--accent); }
+  .retour { display: inline-block; margin-bottom: 14px; font-size: 13px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  .sous-titre { color: var(--muted); font-size: 13px; margin: 0 0 18px; }
+  #liste { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; }
+  .station { background: var(--panel); border: 1px solid var(--border); border-radius: 12px; padding: 12px 14px; }
+  .station .haut { display: flex; align-items: flex-start; gap: 8px; }
+  .station h2 { flex: 1; min-width: 0; font-size: 15px; margin: 0; }
+  .station h2::before { content: "★ "; color: var(--favori); }
+  .station .ligne { color: var(--muted); margin: 2px 0; }
+  .station .kw { font-weight: 700; color: var(--fg); }
+  .badge { display: inline-block; padding: 1px 8px; border-radius: 999px; color: #fff; font-size: 12px; font-weight: 600; margin-top: 4px; }
+  .badge.confirme { background: var(--confirme); }
+  .badge.probable { background: var(--probable); }
+  .absente .ligne.alerte { color: var(--probable); }
+  .retirer { font: inherit; font-size: 13px; cursor: pointer; border: 1px solid var(--border); border-radius: 8px;
+    background: var(--bg); color: var(--muted); padding: 3px 9px; flex: none; }
+  .liens { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .liens a { flex: 1 1 120px; text-align: center; padding: 6px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); text-decoration: none; font-weight: 600; }
+  .liens a.carte { background: var(--accent); border-color: transparent; color: #fff; }
+  .vide { color: var(--muted); background: var(--panel); border: 1px dashed var(--border); border-radius: 12px; padding: 18px; text-align: center; }
+</style>
+</head>
+<body>
+<main>
+  <a class="retour" href="index.html">← Carte des bornes 800 V</a>
+  <h1>Mes stations favorites</h1>
+  <p class="sous-titre" id="sous-titre">Enregistrées dans ce navigateur.</p>
+  <ul id="liste"></ul>
+</main>
+
+<script>
+// Mêmes favoris que la carte (localStorage), identifiés par « lat,lon ».
+const CLE_FAVORIS = 'bornes800v.favoris';
+const echapper = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
+const reseauDe = p => p.reseau || p.operateur || 'Inconnu';
+
+let favoris = {};
+let stations = null;   // clé → propriétés actuelles (null tant que les données ne sont pas chargées)
+
+function lireFavoris() {
+  try { favoris = JSON.parse(localStorage.getItem(CLE_FAVORIS)) || {}; } catch { favoris = {}; }
+}
+function enregistrerFavoris() {
+  try { localStorage.setItem(CLE_FAVORIS, JSON.stringify(favoris)); } catch {}
+}
+
+function afficher() {
+  const cles = Object.keys(favoris).sort((a, b) => favoris[a].nom.localeCompare(favoris[b].nom, 'fr'));
+  const n = cles.length;
+  document.getElementById('sous-titre').textContent =
+    `${n} station${n > 1 ? 's' : ''} enregistrée${n > 1 ? 's' : ''} dans ce navigateur.`;
+  document.getElementById('liste').innerHTML = n ? cles.map(cle => {
+    const f = favoris[cle], p = stations && stations.get(cle), absente = stations && !p;
+    const [lat, lon] = cle.split(',');
+    const lieu = p && (p.adresse || p.commune);
+    return `<li class="station${absente ? ' absente' : ''}">
+      <div class="haut">
+        <h2>${echapper(p ? p.nom || reseauDe(p) : f.nom)}</h2>
+        <button class="retirer" data-cle="${cle}" aria-label="Retirer ${echapper(f.nom)} des favoris">Retirer</button>
+      </div>
+      ${lieu ? `<div class="ligne">${echapper(lieu)}</div>` : ''}
+      <div class="ligne"><span class="kw">${p ? p.kw : f.kw} kW</span> · ${echapper(p ? reseauDe(p) : f.reseau)}${p ? ` · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge` : ''}</div>
+      ${p ? `<span class="badge ${p.niveau}">${p.niveau === 'confirme' ? '800 V confirmé' : '800 V probable'}</span>` : ''}
+      ${absente ? '<div class="ligne alerte">Absente des données actuelles (station retirée ou déplacée)</div>' : ''}
+      <div class="liens">
+        <a class="carte" href="index.html?borne=${lat},${lon}">Voir sur la carte</a>
+        <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener">Google Maps</a>
+        <a href="https://waze.com/ul?ll=${lat},${lon}&navigate=yes" target="_blank" rel="noopener">Waze</a>
+      </div>
+    </li>`;
+  }).join('') : `<li class="vide">Aucun favori pour l'instant.<br>Sur la <a href="index.html">carte</a>, ouvrez la fiche d'une station et touchez « ☆ Ajouter aux favoris ».</li>`;
+}
+
+document.getElementById('liste').addEventListener('click', e => {
+  const bouton = e.target.closest('button.retirer');
+  if (!bouton) return;
+  delete favoris[bouton.dataset.cle];
+  enregistrerFavoris();
+  afficher();
+});
+// Favoris modifiés depuis la carte ouverte dans un autre onglet
+addEventListener('storage', e => { if (e.key === CLE_FAVORIS) { lireFavoris(); afficher(); } });
+
+lireFavoris();
+afficher();
+fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
+  stations = new Map(donnees.features.map(f => {
+    const [lon, lat] = f.geometry.coordinates;
+    return [`${lat},${lon}`, f.properties];
+  }));
+  afficher();
+}).catch(() => {});   // sans les données, on affiche ce qui a été mémorisé
+</script>
+</body>
+</html>

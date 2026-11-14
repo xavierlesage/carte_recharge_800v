@@ -63,14 +63,6 @@
   .avertissement { font-size: 12px; color: var(--muted); margin: 12px 0 0; border-top: 1px solid var(--border); padding-top: 10px; }
   #replier { display: none; }
 
-  #liste-favoris { list-style: none; margin: 6px 0 0; padding: 0; }
-  #liste-favoris li { display: flex; align-items: center; gap: 6px; padding: 5px 0; border-top: 1px solid var(--border); }
-  #liste-favoris li:first-child { border-top: 0; }
-  #liste-favoris .aller { flex: 1; min-width: 0; text-align: left; border: 0; padding: 2px 0; background: none; }
-  #liste-favoris .aller small { display: block; color: var(--muted); font-size: 12px; }
-  #liste-favoris .retirer { border: 0; background: none; color: var(--muted); padding: 2px 6px; font-size: 16px; line-height: 1; }
-  #liste-favoris .vide { color: var(--muted); font-size: 12.5px; border: 0; }
-  #liste-favoris .absente small { color: var(--probable); }
 
   .pin-position svg { display: block; filter: drop-shadow(0 2px 3px rgba(0,0,0,.4)); }
 
@@ -154,11 +146,11 @@
     <fieldset>
       <legend>Favoris</legend>
       <label class="niveau"><input type="checkbox" id="seulement-favoris"> Afficher uniquement mes favoris</label>
-      <ul id="liste-favoris"></ul>
     </fieldset>
     <div id="compteur">Chargement…</div>
     <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : en France, les données publiques n'indiquent pas la tension des bornes. En Espagne, la tension maximale déclarée par l'opérateur est utilisée quand elle est connue (bornes déclarées sous 800 V exclues). Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
-    <p class="lien-historique"><a href="historique.html">Historique des bornes rapides en France →</a></p>
+    <p class="lien-historique"><a href="favoris.html">★ Mes stations favorites →</a></p>
+    <p class="lien-historique"><a href="historique.html">Historique des bornes rapides en France</a></p>
   </div>
 </aside>
 
@@ -236,37 +228,8 @@ function basculerFavori(cle) {
   else favoris[cle] = { nom: m.borne.nom || reseauDe(m.borne), reseau: reseauDe(m.borne), kw: m.borne.kw, ajout: new Date().toISOString().slice(0, 10) };
   enregistrerFavoris();
   if (m) m.setIcon(iconeBorne(m.borne, cle in favoris));
-  afficherFavoris();
   if (document.getElementById('seulement-favoris').checked) filtrer();
 }
-function afficherFavoris() {
-  const cles = Object.keys(favoris).sort((a, b) => favoris[a].nom.localeCompare(favoris[b].nom, 'fr'));
-  document.getElementById('liste-favoris').innerHTML = cles.length ? cles.map(cle => {
-    const f = favoris[cle], absente = marqueurs.length && !parCle.has(cle);
-    return `<li${absente ? ' class="absente"' : ''}>
-      <button class="aller" data-cle="${cle}">${echapper(f.nom)}<small>${absente ? 'Absente des données actuelles' : `${echapper(f.reseau)} · ${f.kw} kW`}</small></button>
-      <button class="retirer" data-cle="${cle}" title="Retirer des favoris" aria-label="Retirer ${echapper(f.nom)} des favoris">×</button>
-    </li>`;
-  }).join('') : '<li class="vide">Aucun favori : ouvrez la fiche d\'une station et touchez « ☆ Ajouter aux favoris ».</li>';
-}
-document.getElementById('liste-favoris').addEventListener('click', e => {
-  const bouton = e.target.closest('button[data-cle]');
-  if (!bouton) return;
-  const cle = bouton.dataset.cle;
-  if (bouton.classList.contains('retirer')) {
-    if (parCle.has(cle)) basculerFavori(cle);
-    else { delete favoris[cle]; enregistrerFavoris(); afficherFavoris(); }
-    return;
-  }
-  const [lat, lon] = cle.split(',').map(Number);
-  const m = parCle.get(cle);
-  if (m && groupe.hasLayer(m)) groupe.zoomToShowLayer(m, () => m.openPopup());
-  else if (m) {   // masquée par les filtres : fiche ouverte hors des groupes
-    carte.setView([lat, lon], 15);
-    L.popup().setLatLng([lat, lon]).setContent(popup(m.borne, lat, lon)).openOn(carte);
-  } else carte.setView([lat, lon], 15);
-  replierSurMobile();
-});
 carte.on('popupopen', e => {
   const bouton = e.popup.getElement().querySelector('.btn-favori');
   if (!bouton) return;
@@ -278,7 +241,13 @@ carte.on('popupopen', e => {
   });
 });
 document.getElementById('seulement-favoris').addEventListener('change', filtrer);
-afficherFavoris();
+// Favoris modifiés depuis la page favoris.html ouverte dans un autre onglet
+addEventListener('storage', e => {
+  if (e.key !== CLE_FAVORIS) return;
+  try { favoris = JSON.parse(e.newValue) || {}; } catch { favoris = {}; }
+  marqueurs.forEach(m => m.setIcon(iconeBorne(m.borne, m.cle in favoris)));
+  if (document.getElementById('seulement-favoris').checked) filtrer();
+});
 
 let reseauChoisi = '';   // '' = tous les réseaux
 let reseaux = [];        // [{ nom, nb }] trié par nom
@@ -319,7 +288,6 @@ fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
   marqueurs.forEach(m => { const r = reseauDe(m.borne); comptes[r] = (comptes[r] || 0) + 1; });
   reseaux = Object.keys(comptes).sort((a, b) => a.localeCompare(b, 'fr')).map(nom => ({ nom, nb: comptes[nom] }));
   filtrer();
-  afficherFavoris();
   ouvrirDepuisUrl();
 }).catch(() => {
   document.getElementById('compteur').textContent = 'Impossible de charger bornes_800v.geojson';
@@ -465,8 +433,12 @@ function ouvrirDepuisUrl() {
     const d = m.getLatLng().distanceTo([blat, blon]);
     return d < meilleur.d ? { m, d } : meilleur;
   }, { m: null, d: 200 }).m;   // tolérance 200 m
-  if (cible) groupe.zoomToShowLayer(cible, () => cible.openPopup());
-  else carte.setView([blat, blon], 15);
+  if (cible && groupe.hasLayer(cible)) groupe.zoomToShowLayer(cible, () => cible.openPopup());
+  else if (cible) {   // masquée par les filtres : fiche ouverte hors des groupes
+    const { lat, lng } = cible.getLatLng();
+    carte.setView([lat, lng], 15);
+    L.popup().setLatLng([lat, lng]).setContent(popup(cible.borne, lat, lng)).openOn(carte);
+  } else carte.setView([blat, blon], 15);
 }
 
 // Filtre réseau : suggestions dès 2 caractères, sans tenir compte des accents ni de la casse
