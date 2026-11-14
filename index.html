@@ -41,7 +41,8 @@
   input[type=range] { width: 100%; accent-color: var(--accent); }
   #compteur { font-weight: 600; margin: 4px 0 10px; }
   .combo { position: relative; }
-  #recherche { margin: 0 0 10px; }
+  .ligne-recherche { display: flex; gap: 6px; margin: 0 0 10px; }
+  #recherche { flex: 1; min-width: 0; }
   .combo input { width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg); color: var(--fg); font: inherit; font-size: 16px; }
   .combo input:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
@@ -55,7 +56,8 @@
   .suggestions li[aria-selected="true"], .suggestions li:hover { background: color-mix(in srgb, var(--accent) 14%, transparent); }
   button { font: inherit; cursor: pointer; border-radius: 8px; border: 1px solid var(--border);
     background: var(--bg); color: var(--fg); padding: 7px 10px; }
-  #localiser { width: 100%; background: var(--accent); color: #fff; border-color: transparent; font-weight: 600; }
+  #localiser { flex: none; width: 40px; padding: 0; display: grid; place-items: center; }
+  #localiser svg { display: block; }
   .lien-historique { margin: 10px 0 0; font-size: 13px; }
   .lien-historique a { color: var(--accent); font-weight: 600; text-decoration: none; }
   .avertissement { font-size: 12px; color: var(--muted); margin: 12px 0 0; border-top: 1px solid var(--border); padding-top: 10px; }
@@ -119,10 +121,17 @@
   <button id="replier" aria-expanded="true">Masquer</button>
   <h1>Bornes rapides 800 V</h1>
   <p class="sous-titre">France · Espagne <span id="date"></span></p>
-  <div id="recherche" class="combo">
-    <input id="adresse" type="search" placeholder="Rechercher une adresse ou une ville…" autocomplete="off"
-      role="combobox" aria-expanded="false" aria-controls="suggestions-adresse" aria-autocomplete="list">
-    <ul id="suggestions-adresse" class="suggestions" role="listbox" hidden></ul>
+  <div class="ligne-recherche">
+    <div id="recherche" class="combo">
+      <input id="adresse" type="search" placeholder="Rechercher une adresse ou une ville…" autocomplete="off"
+        role="combobox" aria-expanded="false" aria-controls="suggestions-adresse" aria-autocomplete="list">
+      <ul id="suggestions-adresse" class="suggestions" role="listbox" hidden></ul>
+    </div>
+    <button id="localiser" title="Me localiser" aria-label="Me localiser">
+      <svg width="18" height="24" viewBox="0 0 30 40" aria-hidden="true">
+        <path d="M15 38.5S2.5 23 2.5 14a12.5 12.5 0 0 1 25 0c0 9-12.5 24.5-12.5 24.5z" fill="#e8318a" stroke="#fff" stroke-width="2.5"/>
+        <circle cx="15" cy="14" r="5" fill="#fff"/></svg>
+    </button>
   </div>
   <div id="compteur">Chargement…</div>
   <div class="corps">
@@ -148,7 +157,6 @@
       <label class="niveau"><input type="checkbox" id="seulement-favoris"> Afficher uniquement mes favoris</label>
       <ul id="liste-favoris"></ul>
     </fieldset>
-    <button id="localiser">📍 Me localiser</button>
     <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : en France, les données publiques n'indiquent pas la tension des bornes. En Espagne, la tension maximale déclarée par l'opérateur est utilisée quand elle est connue (bornes déclarées sous 800 V exclues). Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
     <p class="lien-historique"><a href="historique.html">Historique des bornes rapides en France →</a></p>
   </div>
@@ -498,6 +506,7 @@ const pinRose = L.divIcon({
 });
 let position, precision, suivi = false, demande = false;
 let centrer = !/[?&](lat|borne)=/.test(location.search);
+const ZOOM_LOCALISER = 16;   // zoom rue quand on clique sur « Me localiser »
 
 function suivrePosition() {
   if (suivi) return;
@@ -505,7 +514,7 @@ function suivrePosition() {
   carte.locate({ watch: true, enableHighAccuracy: true, maximumAge: 30000 });
 }
 document.getElementById('localiser').addEventListener('click', () => {
-  if (position) carte.setView(position.getLatLng(), Math.max(carte.getZoom(), 11));
+  if (position) carte.setView(position.getLatLng(), ZOOM_LOCALISER);
   else { centrer = demande = true; suivrePosition(); }
 });
 carte.on('locationfound', e => {
@@ -517,7 +526,7 @@ carte.on('locationfound', e => {
     position.setLatLng(e.latlng);
     precision.setLatLng(e.latlng).setRadius(e.accuracy);
   }
-  if (centrer) { carte.setView(e.latlng, Math.max(carte.getZoom(), 11)); centrer = false; }
+  if (centrer) { carte.setView(e.latlng, demande ? ZOOM_LOCALISER : Math.max(carte.getZoom(), 11)); centrer = false; }
 });
 carte.on('locationerror', e => {
   if (e.code === 1) { carte.stopLocate(); suivi = false; }   // autorisation refusée : inutile de continuer
