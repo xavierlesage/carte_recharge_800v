@@ -39,7 +39,7 @@
   .pastille.confirme { background: var(--confirme); }
   .pastille.probable { background: var(--probable); }
   input[type=range] { width: 100%; accent-color: var(--accent); }
-  #compteur { font-weight: 600; margin: 4px 0 10px; }
+  #compteur { font-weight: 600; margin: 0; }
   .combo { position: relative; }
   .ligne-recherche { display: flex; gap: 6px; margin: 0 0 10px; }
   #recherche { flex: 1; min-width: 0; }
@@ -133,7 +133,6 @@
         <circle cx="15" cy="14" r="5" fill="#fff"/></svg>
     </button>
   </div>
-  <div id="compteur">Chargement…</div>
   <div class="corps">
     <fieldset>
       <legend>Compatibilité 800 V</legend>
@@ -157,6 +156,7 @@
       <label class="niveau"><input type="checkbox" id="seulement-favoris"> Afficher uniquement mes favoris</label>
       <ul id="liste-favoris"></ul>
     </fieldset>
+    <div id="compteur">Chargement…</div>
     <p class="avertissement">Classement indicatif, basé sur l'opérateur et le matériel connu de chaque réseau : en France, les données publiques n'indiquent pas la tension des bornes. En Espagne, la tension maximale déclarée par l'opérateur est utilisée quand elle est connue (bornes déclarées sous 800 V exclues). Exclus : IZIVIA et Tesla (Superchargeurs V3 limités à ~500 V).</p>
     <p class="lien-historique"><a href="historique.html">Historique des bornes rapides en France →</a></p>
   </div>
