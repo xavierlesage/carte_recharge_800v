@@ -82,7 +82,7 @@ function afficher() {
         <button class="retirer" data-cle="${cle}" aria-label="Retirer ${echapper(f.nom)} des favoris">Retirer</button>
       </div>
       ${lieu ? `<div class="ligne">${echapper(lieu)}</div>` : ''}
-      <div class="ligne"><span class="kw">${p ? p.kw : f.kw} kW</span> · ${echapper(p ? reseauDe(p) : f.reseau)}${p ? ` · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge` : ''}</div>
+      <div class="ligne"><span class="kw">${echapper((p || f).kw_texte || `${(p || f).kw} kW`)}</span> · ${echapper(p ? reseauDe(p) : f.reseau)}${p ? ` · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge` : ''}</div>
       ${p ? `<span class="badge ${p.niveau}">${p.niveau === 'confirme' ? '800 V confirmé' : '800 V probable'}</span>` : ''}
       ${absente ? '<div class="ligne alerte">Absente des données actuelles (station retirée ou déplacée)</div>' : ''}
       <div class="liens">

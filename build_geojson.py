@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 """Génère bornes_800v.geojson à partir des données publiques de bornes de recharge :
   - France : fichier national IRVE (data.gouv.fr) ;
-  - Espagne : publication DATEX II des « electrolineras » du Point d'accès national (DGT / MITERD).
+  - Espagne : publication DATEX II des « electrolineras » du Point d'accès national (DGT / MITERD) ;
+  - en complément, OpenStreetMap (API Overpass) pour les réseaux absents de ces fichiers
+    (clé « osm » de regles_800v.json).
 
-Usage : python3 build_geojson.py [--irve chemin_csv] [--dgt chemin_xml | --garder-es]
+Usage : python3 build_geojson.py [--irve chemin_csv] [--dgt chemin_xml | --garder-es] [--sans-osm]
 Sans argument, télécharge la dernière version de chaque source.
 """
 import argparse
@@ -13,12 +15,24 @@ import json
 import os
 import re
 import tempfile
+import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
 ICI = os.path.dirname(os.path.abspath(__file__))
 DATASET = "https://www.data.gouv.fr/api/1/datasets/5448d3e0c751df01f85d0572/"
 FLUX_DGT = "https://infocar.dgt.es/datex2/v3/miterd/EnergyInfrastructureTablePublication/electrolineras.xml"
+OVERPASS = "https://overpass-api.de/api/interpreter"
+
+# Le Python de python.org sur macOS n'a pas de certificats racine tant que « Install Certificates »
+# n'a pas été lancé : on utilise ceux de certifi s'il est installé (urlopen et urlretrieve).
+try:
+    import ssl
+    import certifi
+    urllib.request.install_opener(urllib.request.build_opener(
+        urllib.request.HTTPSHandler(context=ssl.create_default_context(cafile=certifi.where()))))
+except ImportError:
+    pass
 
 
 def telecharger_csv():
@@ -230,6 +244,78 @@ def lire_dgt(chemin, pmin):
     return stations, date_donnees
 
 
+def telecharger_osm(config_osm, pays):
+    """Stations de recharge OpenStreetMap d'un pays dont l'opérateur, la marque, le réseau ou le
+    nom correspond au motif configuré (requête Overpass)."""
+    motif = config_osm["motif"].replace('"', '\\"')
+    filtres = "".join(f'nwr["amenity"="charging_station"](area.zone)["{cle}"~"{motif}",i];'
+                      for cle in ("operator", "brand", "network", "name"))
+    requete = (f'[out:json][timeout:180];area["ISO3166-1"="{pays}"][admin_level=2]->.zone;'
+               f"({filtres});out center tags;")
+    print(f"Téléchargement OpenStreetMap ({pays}, Overpass)")
+    req = urllib.request.Request(OVERPASS, data=urllib.parse.urlencode({"data": requete}).encode(),
+                                 headers={"User-Agent": "carte-recharge-800v/1.0"})
+    with urllib.request.urlopen(req, timeout=240) as r:
+        return json.load(r)
+
+
+def kw_osm(valeur):
+    """« 300 kW », « 50kW », « 400 » (kW implicite), « 22000 W »… → kW (0 si illisible).
+    Plusieurs valeurs séparées par « ; » : la plus grande."""
+    meilleur = 0
+    for morceau in (valeur or "").split(";"):
+        m = re.match(r"\s*([\d.,]+)\s*(kw|w)?\s*$", morceau, re.I)
+        if not m:
+            continue
+        p = float(m.group(1).replace(",", "."))
+        if (m.group(2) or "").lower() == "w" or p > 2000:
+            p /= 1000
+        meilleur = max(meilleur, p)
+    return meilleur
+
+
+def lire_osm(donnees, pays, config_osm, pmin):
+    """Stations OSM au format interne. Puissance : prises CCS (socket:type2_combo:output), sinon
+    puissance de la station ; non renseignée → puissance_defaut_kw, affichée « > N kW (à confirmer) »."""
+    stations = {}
+    date_donnees = (donnees.get("osm3s", {}).get("timestamp_osm_base") or "")[:10]
+    for e in donnees.get("elements", []):
+        t = e.get("tags", {})
+        lat, lon = e.get("lat", e.get("center", {}).get("lat")), e.get("lon", e.get("center", {}).get("lon"))
+        if lat is None or lon is None or t.get("socket:type2_combo") == "no":
+            continue
+        if "capacity" not in t and not any(k.startswith("socket:") for k in t):
+            continue  # ni prise ni capacité : élément mal étiqueté (panneau, enseigne…)
+        p = kw_osm(t.get("socket:type2_combo:output")) or kw_osm(t.get("charging_station:output"))
+        estimee = not p
+        if estimee:
+            p = config_osm["puissance_defaut_kw"]
+        if p < pmin:
+            continue
+        nb = next((int(v) for v in (t.get("socket:type2_combo"), t.get("capacity"))
+                   if v and v.isdigit()), 0)
+        rue = " ".join(x for x in (t.get("addr:housenumber"), t.get("addr:street")) if x)
+        ville = " ".join(x for x in (t.get("addr:postcode"), t.get("addr:city")) if x)
+        stations[f"OSM:{e['type']}/{e['id']}"] = {
+            "pays": pays,
+            "nom": t.get("name") or t.get("network") or t.get("description", ""),
+            "adresse": ", ".join(x for x in (rue, ville) if x),
+            "commune": t.get("addr:city", ""),
+            "operateur": t.get("operator", ""),
+            "enseigne": t.get("brand", ""),
+            "amenageur": t.get("network", ""),
+            "code_operateur": "",
+            "horaires": t.get("opening_hours", ""),
+            "mise_en_service": t.get("start_date", ""),
+            "pdc": set(), "nbre_pdc": nb,
+            "maj": t.get("check_date", ""),  # vide le plus souvent : au dédoublonnage, l'IRVE/DGT prime
+            "pmax": p, "tension": 0,
+            "lon": round(lon, 5), "lat": round(lat, 5),
+            "source": "OSM", "puissance_estimee": estimee,
+        }
+    return stations, date_donnees
+
+
 def classer(s, regles, noms, p_probable, v_min, p_confirme):
     """Niveau de compatibilité 800 V, raison et nom de réseau d'une station."""
     texte = " | ".join((s["operateur"], s["enseigne"], s["amenageur"], s["code_operateur"]))
@@ -261,6 +347,8 @@ def main():
     parser.add_argument("--garder-es", action="store_true",
                         help="ne pas relire l'Espagne : reprendre ses bornes du bornes_800v.geojson actuel "
                              "(quand le flux de la DGT est indisponible)")
+    parser.add_argument("--sans-osm", action="store_true",
+                        help="ne pas interroger OpenStreetMap (source complémentaire)")
     args = parser.parse_args()
 
     with open(os.path.join(ICI, "regles_800v.json"), encoding="utf-8") as f:
@@ -279,11 +367,26 @@ def main():
     if args.garder_es:
         with open(os.path.join(ICI, "bornes_800v.geojson"), encoding="utf-8") as f:
             ancien = json.load(f)
-        features_es = [x for x in ancien["features"] if x["properties"]["pays"] == "ES"]
+        features_es = [x for x in ancien["features"]
+                       if x["properties"]["pays"] == "ES" and x["properties"].get("source") != "OpenStreetMap"]
         date_es = ancien.get("date_donnees_es", "")
     else:
         stations_es, date_es = lire_dgt(args.dgt or telecharger_dgt(), pmin)
         stations.update(stations_es)
+
+    # OpenStreetMap, en complément, pour les réseaux qui ne déclarent pas leurs bornes (Fastned…).
+    # Les stations aussi présentes dans l'IRVE ou la DGT sont fusionnées au dédoublonnage.
+    config_osm = config.get("osm")
+    date_osm = ""
+    if config_osm and not args.sans_osm:
+        for pays in config_osm["pays"]:
+            try:
+                stations_osm, date_osm = lire_osm(telecharger_osm(config_osm, pays), pays, config_osm, pmin)
+            except (OSError, ValueError) as err:
+                print(f"OpenStreetMap ({pays}) indisponible, ignoré : {err}")
+                continue
+            print(f"  {len(stations_osm)} stations OSM ({pays})")
+            stations.update(stations_osm)
 
     # Corrections manuelles (coordonnées ou nom faux dans la source), avant le dédoublonnage
     # qui s'appuie sur la position.
@@ -309,6 +412,8 @@ def main():
         s["niveau"], s["raison"], reseau = classer(s, regles, noms, p_probable, v_min, p_confirme)
         s["reseau"] = graphies.setdefault(reseau.lower(), reseau) or "Inconnu"
         s["nb_pdc"] = max(len(s["pdc"]), s["nbre_pdc"])
+        if s.get("puissance_estimee"):
+            s["raison"] += f" — puissance non renseignée dans OpenStreetMap, supposée > {round(s['pmax'])} kW (à confirmer)"
 
     # Une même station est parfois déclarée plusieurs fois, par des sources différentes
     # et avec des coordonnées légèrement décalées. Pour un même réseau, deux stations à
@@ -353,6 +458,11 @@ def main():
         }
         if s["tension"]:
             proprietes["tension"] = s["tension"]
+        if s.get("source") == "OSM":
+            proprietes["source"] = "OpenStreetMap"
+        if s.get("puissance_estimee"):
+            # « kw » reste numérique (filtre, taille du pin) ; kw_texte remplace « N kW » à l'affichage
+            proprietes["kw_texte"] = f"> {round(s['pmax'])} kW (à confirmer)"
         features.append({
             "type": "Feature",
             "geometry": {"type": "Point", "coordinates": [s["lon"], s["lat"]]},
@@ -365,7 +475,7 @@ def main():
     features += features_es
 
     sortie = {"type": "FeatureCollection", "date_donnees": date_fr, "date_donnees_es": date_es,
-              "features": features}
+              "date_donnees_osm": date_osm, "features": features}
     with open(os.path.join(ICI, "bornes_800v.geojson"), "w", encoding="utf-8") as f:
         json.dump(sortie, f, ensure_ascii=False, separators=(",", ":"))
 

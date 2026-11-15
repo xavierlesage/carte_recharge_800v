@@ -179,6 +179,7 @@ carte.addLayer(groupe);
 
 const echapper = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const reseauDe = p => p.reseau || p.operateur || 'Inconnu';
+const puissanceDe = p => p.kw_texte || `${p.kw} kW`;
 
 function popup(p, lat, lon) {
   const libelle = p.niveau === 'confirme' ? '800 V confirmé' : '800 V probable';
@@ -186,13 +187,14 @@ function popup(p, lat, lon) {
   return `<div class="popup">
     <h2>${echapper(p.nom || reseauDe(p))}</h2>
     <div class="ligne">${echapper(lieu)}</div>
-    <div><span class="kw">${p.kw} kW</span> · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge</div>
+    <div><span class="kw">${echapper(puissanceDe(p))}</span> · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge</div>
     <div class="ligne">Réseau : ${echapper(reseauDe(p))}${p.operateur && p.operateur !== p.reseau ? ` (${echapper(p.operateur)})` : ''}</div>
     ${p.tension ? `<div class="ligne">Tension max déclarée : ${p.tension} V</div>` : ''}
     ${p.horaires ? `<div class="ligne">Horaires : ${echapper(p.horaires)}</div>` : ''}
     ${p.mise_en_service ? `<div class="ligne">Mise en service : ${echapper(p.mise_en_service)}</div>` : ''}
     <span class="badge ${p.niveau}">${libelle}</span>
     <div class="raison">${echapper(p.raison)}</div>
+    ${p.source ? `<div class="raison">Source : ${echapper(p.source)} (données contributives, à vérifier)</div>` : ''}
     ${boutonFavori(cleBorne(lat, lon))}
     <div class="liens">
       <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener">Google Maps</a>
@@ -225,7 +227,7 @@ function iconeBorne(p, favori) {
 function basculerFavori(cle) {
   const m = parCle.get(cle);
   if (cle in favoris) delete favoris[cle];
-  else favoris[cle] = { nom: m.borne.nom || reseauDe(m.borne), reseau: reseauDe(m.borne), kw: m.borne.kw, ajout: new Date().toISOString().slice(0, 10) };
+  else favoris[cle] = { nom: m.borne.nom || reseauDe(m.borne), reseau: reseauDe(m.borne), kw: m.borne.kw, kw_texte: m.borne.kw_texte, ajout: new Date().toISOString().slice(0, 10) };
   enregistrerFavoris();
   if (m) m.setIcon(iconeBorne(m.borne, cle in favoris));
   if (document.getElementById('seulement-favoris').checked) filtrer();
@@ -270,13 +272,14 @@ fetch('bornes_800v.geojson').then(r => r.json()).then(donnees => {
   const jour = d => new Date(d).toLocaleDateString('fr-FR');
   document.getElementById('date').textContent = [
     donnees.date_donnees && `· IRVE ${jour(donnees.date_donnees)}`,
-    donnees.date_donnees_es && `· DGT ${jour(donnees.date_donnees_es)}`
+    donnees.date_donnees_es && `· DGT ${jour(donnees.date_donnees_es)}`,
+    donnees.date_donnees_osm && `· OSM ${jour(donnees.date_donnees_osm)}`
   ].filter(Boolean).join(' ');
   marqueurs = donnees.features.map(f => {
     const [lon, lat] = f.geometry.coordinates;
     const p = f.properties;
     const cle = cleBorne(lat, lon);
-    const m = L.marker([lat, lon], { icon: iconeBorne(p, cle in favoris), title: `${reseauDe(p)} · ${p.kw} kW` });
+    const m = L.marker([lat, lon], { icon: iconeBorne(p, cle in favoris), title: `${reseauDe(p)} · ${puissanceDe(p)}` });
     m.borne = p;
     m.cle = cle;
     parCle.set(cle, m);

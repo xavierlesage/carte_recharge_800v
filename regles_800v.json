@@ -5,6 +5,12 @@
   "probable_si_puissance_kw": 300,
   "confirme_si_puissance_kw": 100,
   "tension_min_v": 800,
+  "osm": {
+    "_doc": "Source complémentaire OpenStreetMap (Overpass) pour les réseaux absents de l'IRVE / de la DGT. motif : regex insensible à la casse sur operator, brand, network ou name. puissance_defaut_kw : puissance supposée quand OSM ne la renseigne pas, affichée « > N kW (à confirmer) ».",
+    "motif": "fastned",
+    "pays": ["FR"],
+    "puissance_defaut_kw": 300
+  },
   "regles": [
     {
       "motif": "tesla",
