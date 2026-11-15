@@ -223,7 +223,7 @@ async function afficherListe(point, stations) {
     r.height = 64;
     const pastille = r.addText(s.niveau === "confirme" ? "🟢" : "🟠");
     pastille.widthWeight = 8;
-    const t = r.addText(`${s.reseau} · ${s.kw_texte || `${s.kw} kW`} · ${s.pdc} pt${s.pdc > 1 ? "s" : ""}`, s.adresse || s.commune || s.nom);
+    const t = r.addText(`${s.reseau} · ${s.kw_texte || `${s.kw} kW`}${s.pdc ? ` · ${s.pdc} pt${s.pdc > 1 ? "s" : ""}` : ""}`, s.adresse || s.commune || s.nom);
     t.widthWeight = 72;
     t.subtitleColor = Color.gray();
     const d = r.addText(formatKm(s.km));

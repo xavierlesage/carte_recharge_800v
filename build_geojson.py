@@ -368,7 +368,7 @@ def main():
         with open(os.path.join(ICI, "bornes_800v.geojson"), encoding="utf-8") as f:
             ancien = json.load(f)
         features_es = [x for x in ancien["features"]
-                       if x["properties"]["pays"] == "ES" and x["properties"].get("source") != "OpenStreetMap"]
+                       if x["properties"]["pays"] == "ES" and not x["properties"].get("source")]
         date_es = ancien.get("date_donnees_es", "")
     else:
         stations_es, date_es = lire_dgt(args.dgt or telecharger_dgt(), pmin)
@@ -376,14 +376,23 @@ def main():
 
     # OpenStreetMap, en complément, pour les réseaux qui ne déclarent pas leurs bornes (Fastned…).
     # Les stations aussi présentes dans l'IRVE ou la DGT sont fusionnées au dédoublonnage.
+    # Si Overpass est indisponible, on reprend les stations OSM du bornes_800v.geojson actuel.
     config_osm = config.get("osm")
     date_osm = ""
+    features_osm = []
     if config_osm and not args.sans_osm:
         for pays in config_osm["pays"]:
             try:
                 stations_osm, date_osm = lire_osm(telecharger_osm(config_osm, pays), pays, config_osm, pmin)
             except (OSError, ValueError) as err:
-                print(f"OpenStreetMap ({pays}) indisponible, ignoré : {err}")
+                with open(os.path.join(ICI, "bornes_800v.geojson"), encoding="utf-8") as f:
+                    ancien = json.load(f)
+                reprises = [x for x in ancien["features"] if x["properties"]["pays"] == pays
+                            and x["properties"].get("source") == "OpenStreetMap"]
+                features_osm += reprises
+                date_osm = ancien.get("date_donnees_osm", "")
+                print(f"OpenStreetMap ({pays}) indisponible ({err}) : {len(reprises)} stations reprises "
+                      f"du fichier actuel (OSM au {date_osm})")
                 continue
             print(f"  {len(stations_osm)} stations OSM ({pays})")
             stations.update(stations_osm)
@@ -391,7 +400,21 @@ def main():
     # Corrections manuelles (coordonnées ou nom faux dans la source), avant le dédoublonnage
     # qui s'appuie sur la position.
     with open(os.path.join(ICI, "corrections_stations.json"), encoding="utf-8") as f:
-        corrections = json.load(f)["stations"]
+        fichier_corrections = json.load(f)
+    corrections = fichier_corrections["stations"]
+
+    # Stations ajoutées à la main, absentes de toutes les sources (en attendant OSM ou l'IRVE).
+    for cle, a in fichier_corrections.get("ajouts", {}).items():
+        stations["MANUEL:" + cle] = {
+            "pays": a["pays"], "nom": a["nom"], "adresse": a.get("adresse", ""),
+            "commune": a.get("commune", ""), "operateur": a["operateur"],
+            "enseigne": "", "amenageur": "", "code_operateur": "",
+            "horaires": a.get("horaires", ""), "mise_en_service": a.get("mise_en_service", ""),
+            "pdc": set(), "nbre_pdc": a.get("pdc", 0),
+            "maj": "",  # au dédoublonnage, toute autre source prime
+            "pmax": a["kw"], "tension": 0, "lat": a["lat"], "lon": a["lon"],
+            "source": "manuel",
+        }
     for cle, s in stations.items():
         s["id"] = cle
     for cle, c in corrections.items():
@@ -421,13 +444,16 @@ def main():
     # récente (puis celle qui a le plus de points de charge).
     MAILLE = 0.003
     grille = collections.defaultdict(list)
-    ordre = sorted(stations.values(), key=lambda s: (s["maj"], s["nb_pdc"]), reverse=True)
+    ordre = sorted(stations.values(), key=lambda s: (s["maj"], s.get("source") != "manuel", s["nb_pdc"]),
+                   reverse=True)
     fusion = []
     for s in ordre:
         i, j = round(s["lat"] / MAILLE), round(s["lon"] / MAILLE)
         voisins = (v for di in (-1, 0, 1) for dj in (-1, 0, 1) for v in grille[(s["reseau"].lower(), i + di, j + dj)])
         doublon = next((v for v in voisins if abs(v["lat"] - s["lat"]) < MAILLE and abs(v["lon"] - s["lon"]) < MAILLE), None)
         if doublon:
+            if s.get("source") == "manuel":
+                print(f"Ajout manuel inutile : {s['id']} est déjà présente dans les données ({doublon['id']})")
             doublon["pmax"] = max(doublon["pmax"], s["pmax"])
             continue
         grille[(s["reseau"].lower(), i, j)].append(s)
@@ -458,8 +484,8 @@ def main():
         }
         if s["tension"]:
             proprietes["tension"] = s["tension"]
-        if s.get("source") == "OSM":
-            proprietes["source"] = "OpenStreetMap"
+        if s.get("source") in ("OSM", "manuel"):
+            proprietes["source"] = "OpenStreetMap" if s["source"] == "OSM" else "Ajout manuel"
         if s.get("puissance_estimee"):
             # « kw » reste numérique (filtre, taille du pin) ; kw_texte remplace « N kW » à l'affichage
             proprietes["kw_texte"] = f"> {round(s['pmax'])} kW (à confirmer)"
@@ -469,10 +495,11 @@ def main():
             "properties": proprietes,
         })
 
-    for x in features_es:
-        stats[("ES", x["properties"]["niveau"])] += 1
-        par_reseau[("ES", x["properties"]["niveau"], x["properties"]["reseau"])] += 1
-    features += features_es
+    for x in features_es + features_osm:
+        p = x["properties"]
+        stats[(p["pays"], p["niveau"])] += 1
+        par_reseau[(p["pays"], p["niveau"], p["reseau"])] += 1
+    features += features_es + features_osm
 
     sortie = {"type": "FeatureCollection", "date_donnees": date_fr, "date_donnees_es": date_es,
               "date_donnees_osm": date_osm, "features": features}

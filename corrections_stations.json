@@ -1,5 +1,19 @@
 {
-  "_doc": "Corrections manuelles de stations mal déclarées dans la source, par identifiant de station (id_station_itinerance pour la France). Champs corrigeables : lat, lon, nom ; \"masquer\": true retire la station de la carte. 'motif' explique la correction. Le script signale les identifiants absents des données (station supprimée ou renommée : correction à retirer).",
+  "_doc": "Corrections manuelles de stations mal déclarées dans la source, par identifiant de station (id_station_itinerance pour la France). Champs corrigeables : lat, lon, nom ; \"masquer\": true retire la station de la carte. 'motif' explique la correction. Le script signale les identifiants absents des données (station supprimée ou renommée : correction à retirer). 'ajouts' : stations absentes de toutes les sources (IRVE, DGT, OSM), ajoutées à la main avec pays, nom, operateur (classé par les règles), kw, lat, lon et facultativement adresse, commune, pdc, horaires ; le script signale celles devenues inutiles (station trouvée dans une source à moins de ~300 m, même réseau).",
+  "ajouts": {
+    "fastned-muzillac": {
+      "pays": "FR",
+      "nom": "Fastned Muzillac",
+      "adresse": "11 Parc d'activités de l'Estuaire, 56190 Arzal",
+      "commune": "Arzal",
+      "operateur": "Fastned",
+      "kw": 400,
+      "lat": 47.53449,
+      "lon": -2.39822,
+      "horaires": "24/7",
+      "motif": "Station Fastned 400 kW absente de l'IRVE et d'OpenStreetMap au 15/11/2026 ; position géocodée (Base Adresse Nationale, au numéro). À retirer quand le script la signale comme inutile."
+    }
+  },
   "stations": {
     "FRALLPEVCARSVANNE": {
       "lat": 47.65933,

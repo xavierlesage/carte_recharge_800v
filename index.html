@@ -187,14 +187,14 @@ function popup(p, lat, lon) {
   return `<div class="popup">
     <h2>${echapper(p.nom || reseauDe(p))}</h2>
     <div class="ligne">${echapper(lieu)}</div>
-    <div><span class="kw">${echapper(puissanceDe(p))}</span> · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge</div>
+    <div><span class="kw">${echapper(puissanceDe(p))}</span>${p.pdc ? ` · ${p.pdc} point${p.pdc > 1 ? 's' : ''} de charge` : ''}</div>
     <div class="ligne">Réseau : ${echapper(reseauDe(p))}${p.operateur && p.operateur !== p.reseau ? ` (${echapper(p.operateur)})` : ''}</div>
     ${p.tension ? `<div class="ligne">Tension max déclarée : ${p.tension} V</div>` : ''}
     ${p.horaires ? `<div class="ligne">Horaires : ${echapper(p.horaires)}</div>` : ''}
     ${p.mise_en_service ? `<div class="ligne">Mise en service : ${echapper(p.mise_en_service)}</div>` : ''}
     <span class="badge ${p.niveau}">${libelle}</span>
     <div class="raison">${echapper(p.raison)}</div>
-    ${p.source ? `<div class="raison">Source : ${echapper(p.source)} (données contributives, à vérifier)</div>` : ''}
+    ${p.source ? `<div class="raison">Source : ${echapper(p.source)}${p.source === 'OpenStreetMap' ? ' (données contributives, à vérifier)' : ''}</div>` : ''}
     ${boutonFavori(cleBorne(lat, lon))}
     <div class="liens">
       <a href="https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}" target="_blank" rel="noopener">Google Maps</a>
